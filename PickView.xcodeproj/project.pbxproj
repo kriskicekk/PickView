@@ -1,0 +1,570 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		44D0E836387B62AC754E2614 /* libPods-PickViewiOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */; };
+		FA36FE5AB587F9CE14BC9CDD /* libPods-PickViewMac.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		01C2F3A62FFA99E200117803 /* PickViewiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickViewiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		01C2F3E72FFA9B5900117803 /* PickViewMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickViewMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewiOS.release.xcconfig"; path = "Target Support Files/Pods-PickViewiOS/Pods-PickViewiOS.release.xcconfig"; sourceTree = "<group>"; };
+		49D66E8D644E4B3AAC2C296D /* Pods-PickViewMac.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewMac.release.xcconfig"; path = "Target Support Files/Pods-PickViewMac/Pods-PickViewMac.release.xcconfig"; sourceTree = "<group>"; };
+		CBF849AE54BD7078528EA069 /* Pods-PickViewMac.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewMac.debug.xcconfig"; path = "Target Support Files/Pods-PickViewMac/Pods-PickViewMac.debug.xcconfig"; sourceTree = "<group>"; };
+		DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewiOS.debug.xcconfig"; path = "Target Support Files/Pods-PickViewiOS/Pods-PickViewiOS.debug.xcconfig"; sourceTree = "<group>"; };
+		E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-PickViewMac.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-PickViewiOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		01C2F3FF2FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewiOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PickViewiOS/AppDelegate.m,
+				PickViewiOS/Assets.xcassets,
+				PickViewiOS/main.m,
+			);
+			target = 01C2F3A52FFA99E200117803 /* PickViewiOS */;
+		};
+		01C2F4002FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewMac" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PickViewiOS/AppDelegate.m,
+				PickViewiOS/Assets.xcassets,
+				PickViewiOS/Info.plist,
+				PickViewiOS/main.m,
+				PickViewMac/Info.plist,
+			);
+			target = 01C2F3E62FFA9B5900117803 /* PickViewMac */;
+		};
+		01D751262FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewiOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PickViewCore/Connection/PVConnection.m,
+				PickViewCore/Error/PVErrorCode.m,
+				PickViewCore/Frame/PVFrame.m,
+				PickViewCore/Frame/PVFrameCodec.m,
+				PickViewServerKit/Internal/Connection/PVLocalTCPConnection.m,
+				PickViewServerKit/Internal/Handlers/PVAppInfoHandler.m,
+				PickViewServerKit/Internal/Handlers/PVCompositeRequestHandler.m,
+				PickViewServerKit/Internal/Handlers/PVMessageHandler.m,
+				PickViewServerKit/Internal/Listener/PVLocalLoopbackListener.m,
+				PickViewServerKit/Internal/PickViewServer.m,
+				PickViewServerKit/Internal/PickViewServerConfiguration.m,
+				PickViewServerKit/Internal/Session/PVServerSession.m,
+				PickViewTransport/USBTransport/PVUSBConnection.m,
+				PickViewTransport/USBTransport/PVUSBEndpoint.m,
+				PickViewTransport/USBTransport/PVUSBEndpointDiscoverer.m,
+			);
+			target = 01C2F3A52FFA99E200117803 /* PickViewiOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		018CA0252FFAA0870011E464 /* Source */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				01D751262FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewiOS" target */,
+			);
+			path = Source;
+			sourceTree = "<group>";
+		};
+		01C2F3FC2FFA9C1400117803 /* Demo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				01C2F3FF2FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewiOS" target */,
+				01C2F4002FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewMac" target */,
+			);
+			path = Demo;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		01C2F3A32FFA99E200117803 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				44D0E836387B62AC754E2614 /* libPods-PickViewiOS.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		01C2F3E42FFA9B5900117803 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA36FE5AB587F9CE14BC9CDD /* libPods-PickViewMac.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		01C2F39D2FFA99E200117803 = {
+			isa = PBXGroup;
+			children = (
+				018CA0252FFAA0870011E464 /* Source */,
+				01C2F3FC2FFA9C1400117803 /* Demo */,
+				01C2F3A72FFA99E200117803 /* Products */,
+				1CCE1CBD03D2C7BA5B5684D3 /* Pods */,
+				E3E6AB4DBE74091163C17F07 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		01C2F3A72FFA99E200117803 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				01C2F3A62FFA99E200117803 /* PickViewiOS.app */,
+				01C2F3E72FFA9B5900117803 /* PickViewMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1CCE1CBD03D2C7BA5B5684D3 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				CBF849AE54BD7078528EA069 /* Pods-PickViewMac.debug.xcconfig */,
+				49D66E8D644E4B3AAC2C296D /* Pods-PickViewMac.release.xcconfig */,
+				DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */,
+				11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		E3E6AB4DBE74091163C17F07 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */,
+				FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		01C2F3A52FFA99E200117803 /* PickViewiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 01C2F3BE2FFA99E300117803 /* Build configuration list for PBXNativeTarget "PickViewiOS" */;
+			buildPhases = (
+				5198F33B9869860C8458E034 /* [CP] Check Pods Manifest.lock */,
+				01C2F3A22FFA99E200117803 /* Sources */,
+				01C2F3A32FFA99E200117803 /* Frameworks */,
+				01C2F3A42FFA99E200117803 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PickViewiOS;
+			productName = PickView;
+			productReference = 01C2F3A62FFA99E200117803 /* PickViewiOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		01C2F3E62FFA9B5900117803 /* PickViewMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 01C2F3F62FFA9B5A00117803 /* Build configuration list for PBXNativeTarget "PickViewMac" */;
+			buildPhases = (
+				7B1B5D60FD3BC3298D3CDAB9 /* [CP] Check Pods Manifest.lock */,
+				01C2F3E32FFA9B5900117803 /* Sources */,
+				01C2F3E42FFA9B5900117803 /* Frameworks */,
+				01C2F3E52FFA9B5900117803 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				018CA0252FFAA0870011E464 /* Source */,
+				01C2F3FC2FFA9C1400117803 /* Demo */,
+			);
+			name = PickViewMac;
+			productName = PickViewMac;
+			productReference = 01C2F3E72FFA9B5900117803 /* PickViewMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		01C2F39E2FFA99E200117803 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					01C2F3A52FFA99E200117803 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					01C2F3E62FFA9B5900117803 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 01C2F3A12FFA99E200117803 /* Build configuration list for PBXProject "PickView" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 01C2F39D2FFA99E200117803;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 01C2F3A72FFA99E200117803 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				01C2F3A52FFA99E200117803 /* PickViewiOS */,
+				01C2F3E62FFA9B5900117803 /* PickViewMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		01C2F3A42FFA99E200117803 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		01C2F3E52FFA9B5900117803 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5198F33B9869860C8458E034 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-PickViewiOS-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		7B1B5D60FD3BC3298D3CDAB9 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-PickViewMac-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		01C2F3A22FFA99E200117803 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		01C2F3E32FFA9B5900117803 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		01C2F3BF2FFA99E300117803 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Demo/PickViewiOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickView;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		01C2F3C02FFA99E300117803 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Demo/PickViewiOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickView;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		01C2F3C12FFA99E300117803 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		01C2F3C22FFA99E300117803 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		01C2F3F72FFA9B5A00117803 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = CBF849AE54BD7078528EA069 /* Pods-PickViewMac.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Demo/PickViewMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickViewMac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		01C2F3F82FFA9B5A00117803 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 49D66E8D644E4B3AAC2C296D /* Pods-PickViewMac.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 26C6R5CQHU;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Demo/PickViewMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickViewMac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		01C2F3A12FFA99E200117803 /* Build configuration list for PBXProject "PickView" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01C2F3C12FFA99E300117803 /* Debug */,
+				01C2F3C22FFA99E300117803 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		01C2F3BE2FFA99E300117803 /* Build configuration list for PBXNativeTarget "PickViewiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01C2F3BF2FFA99E300117803 /* Debug */,
+				01C2F3C02FFA99E300117803 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		01C2F3F62FFA9B5A00117803 /* Build configuration list for PBXNativeTarget "PickViewMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01C2F3F72FFA9B5A00117803 /* Debug */,
+				01C2F3F82FFA9B5A00117803 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 01C2F39E2FFA99E200117803 /* Project object */;
+}

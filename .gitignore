@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user state
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Xcode build products
+build/
+DerivedData/
+*.xcactivitylog
+*.xcresult
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods
+Pods/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Objective-C / C build artifacts
+*.o
+*.lo
+*.la
+*.a
+*.dylib
+*.so
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*.orig
