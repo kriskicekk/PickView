@@ -8,8 +8,12 @@
 #ifndef PVKitVersion_h
 #define PVKitVersion_h
 
-static const uint32_t PVProtocolVersion = 1;
-static const uint32_t PVSupportedPeerVersionMin = 1;
-static const uint32_t PVSupportedPeerVersionMax = 1;
+static NSString * const PVClientProtocolVersion = @"1";
+static NSString * const PVClientSupportedPeerVersionMin = @"1";
+static NSString * const PVClientSupportedPeerVersionMax = @"1";
+
+static NSString * const PVServerProtocolVersion = @"1";
+static NSString * const PVServerSupportedPeerVersionMin = @"1";
+static NSString * const PVServerSupportedPeerVersionMax = @"1";
 
 #endif /* PVKitVersion_h */

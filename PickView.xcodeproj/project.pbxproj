@@ -50,6 +50,8 @@
 				PickViewCore/Error/PVErrorCode.m,
 				PickViewCore/Frame/PVFrame.m,
 				PickViewCore/Frame/PVFrameCodec.m,
+				PickViewCore/Identity/PVPeerIdentity.m,
+				PickViewCore/Utils/PVUtils.m,
 				PickViewServerKit/Internal/Connection/PVLocalTCPConnection.m,
 				PickViewServerKit/Internal/Handlers/PVAppInfoHandler.m,
 				PickViewServerKit/Internal/Handlers/PVCompositeRequestHandler.m,

@@ -13,10 +13,14 @@
 #import "PVErrorCode.h"
 #import "PVKitVersion.h"
 #import "PVRequestType.h"
+#import "PVUtils.h"
+#import "PVPeerIdentityConstant.h"
+#import "PVPeerIdentity.h"
 
 @interface PVClientSession ()
 @property (nonatomic, strong) id<PVConnectionProtocol> connection;
 @property (nonatomic, assign) PVClientSessionState state;
+@property (nonatomic, strong) PVPeerIdentity *peerIdentity;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, PVPendingRequest *> *pendingRequests;
 @property (nonatomic, assign) uint32_t nextTag;
 @end
@@ -43,7 +47,7 @@
             return;
         }
         self.state = PVClientSessionStateHandshaking;
-        [self validateVersionWithCompletion:^(NSError * _Nullable error) {
+        [self validateVersionWithCompletion:^(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable error) {
             if (error) {
                 [self.connection close];
                 self.state = PVClientSessionStateFailed;
@@ -51,27 +55,47 @@
                 return;
             }
             self.state = PVClientSessionStateReady;
+            self.peerIdentity = peerIdentity;
             if (completion) completion(nil);
         }];
     }];
 }
 
-- (void)validateVersionWithCompletion:(void (^)(NSError * _Nullable))completion {
+- (void)validateVersionWithCompletion:(void (^)(PVPeerIdentity * _Nullable, NSError * _Nullable))completion {
     [self sendRequestType:PVRequestTypePing payload:nil timeoutInterval:5 completion:^(NSData * _Nullable payload, NSError * _Nullable error) {
         if (error) {
-            if (completion) completion(error);
-            return ;
+            if (completion) completion(nil, error);
+            return;
         }
 
+        if (!payload.length) {
+            NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: @"Missing server version payload."}];
+            if (completion) completion(nil, error);
+            return;
+        }
+
+        NSError *serializationError = nil;
+        id object = [NSPropertyListSerialization propertyListWithData:payload
+                                                              options:NSPropertyListImmutable
+                                                               format:nil
+                                                                error:&serializationError];
+        if (![object isKindOfClass:NSDictionary.class]) {
+            NSString *reason = serializationError.localizedDescription ?: @"Invalid server version payload.";
+            NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: reason}];
+            if (completion) completion(nil, error);
+            return;
+        }
+
+        PVPeerIdentity *peerIdentity = [[PVPeerIdentity alloc] initWithDictionary:(NSDictionary *)object];
         NSError *validationError = nil;
-        if (![self validateVersionPayload:payload error:&validationError]) {
+        if (![self validatePeerIdentity:peerIdentity error:&validationError]) {
             if (completion) {
-                completion(validationError);
+                completion(nil, validationError);
             }
             return;
         }
 
-        if (completion) completion(nil);
+        if (completion) completion(peerIdentity, nil);
     }];
 }
 
@@ -143,53 +167,33 @@
     }
 }
 
-- (BOOL)validateVersionPayload:(NSData *)data error:(NSError **)error {
-    if (!data.length) {
-        if (error) {
-            *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: @"Missing server version payload."}];
-        }
-        return NO;
-    }
+- (BOOL)validatePeerIdentity:(PVPeerIdentity *)peerIdentity error:(NSError **)error {
+    PVPeerIdentity *identity = [PVPeerIdentity sharedIdentity];
 
-    NSError *serializationError = nil;
-    id object = [NSPropertyListSerialization propertyListWithData:data
-                                                          options:NSPropertyListImmutable
-                                                           format:nil
-                                                            error:&serializationError];
-    if (![object isKindOfClass:NSDictionary.class]) {
-        if (error) {
-            NSString *reason = serializationError.localizedDescription ?: @"Invalid server version payload.";
-            *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: reason}];
-        }
-        return NO;
-    }
-
-    NSDictionary *info = (NSDictionary *)object;
-    NSNumber *peerVersion = [info[@"protocolVersion"] isKindOfClass:NSNumber.class] ? info[@"protocolVersion"] : nil;
-    if (!peerVersion) {
+    NSString *peerVersion = peerIdentity.protocolVersion;
+    if (!peerVersion || peerVersion.length == 0) {
         if (error) {
             *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: @"Missing server protocolVersion."}];
         }
         return NO;
     }
 
-    uint32_t version = peerVersion.unsignedIntValue;
-    if (version < PVSupportedPeerVersionMin || version > PVSupportedPeerVersionMax) {
+    if ([PVUtils compareVersion:peerVersion toVersion:identity.supportedPeerVersionMin] == NSOrderedAscending ||
+        [PVUtils compareVersion:peerVersion toVersion:identity.supportedPeerVersionMax] == NSOrderedDescending) {
         if (error) {
-            NSString *reason = [NSString stringWithFormat:@"Unsupported server protocolVersion: %u.", version];
+            NSString *reason = [NSString stringWithFormat:@"Unsupported server protocolVersion: %@.", peerVersion];
             *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: reason}];
         }
         return NO;
     }
 
-    NSNumber *supportedMin = [info[@"supportedMin"] isKindOfClass:NSNumber.class] ? info[@"supportedMin"] : nil;
-    NSNumber *supportedMax = [info[@"supportedMax"] isKindOfClass:NSNumber.class] ? info[@"supportedMax"] : nil;
-    if (supportedMin && supportedMax) {
-        uint32_t minVersion = supportedMin.unsignedIntValue;
-        uint32_t maxVersion = supportedMax.unsignedIntValue;
-        if (PVProtocolVersion < minVersion || PVProtocolVersion > maxVersion) {
+    NSString *peerSupportedMin = peerIdentity.supportedPeerVersionMin;
+    NSString *peerSupportedMax = peerIdentity.supportedPeerVersionMax;
+    if (peerSupportedMin && peerSupportedMax) {
+        if ([PVUtils compareVersion:identity.protocolVersion toVersion:peerSupportedMin] == NSOrderedAscending ||
+            [PVUtils compareVersion:identity.protocolVersion toVersion:peerSupportedMax] == NSOrderedDescending) {
             if (error) {
-                NSString *reason = [NSString stringWithFormat:@"Client protocolVersion %u is outside server supported range %u-%u.", PVProtocolVersion, minVersion, maxVersion];
+                NSString *reason = [NSString stringWithFormat:@"Client protocolVersion %@ is outside server supported range %@-%@.", PVClientProtocolVersion, peerSupportedMin, peerSupportedMax];
                 *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeIncompatibleVersion userInfo:@{NSLocalizedDescriptionKey: reason}];
             }
             return NO;
