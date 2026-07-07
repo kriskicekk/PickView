@@ -6,7 +6,6 @@
 //
 
 #import "PVLocalTCPConnection.h"
-#import "../../../PickViewCore/Connection/PVConnectionInternal.h"
 #import "PVFrame.h"
 #import "PVErrorCode.h"
 #import "PVConnectionDelegate.h"
@@ -18,8 +17,8 @@
     self = [super init];
     if (self) {
         self.channel = channel;
-        self.channel.delegate = self;
-        self.state = PVConnectionStateConnected;
+        channel.delegate = (id<PTChannelDelegate>)self;
+        _state = PVConnectionStateConnected;
     }
     return self;
 }

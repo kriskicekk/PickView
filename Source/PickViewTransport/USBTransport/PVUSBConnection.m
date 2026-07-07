@@ -6,7 +6,6 @@
 //
 
 #import "PVUSBConnection.h"
-#import "../../PickViewCore/Connection/PVConnectionInternal.h"
 #import "PVUSBEndpoint.h"
 #import "PVFrame.h"
 #import "PVErrorCode.h"
@@ -39,16 +38,17 @@
         return;
     }
 
-    self.state = PVConnectionStateConnecting;
-    self.channel = [PTChannel channelWithDelegate:self];
-    [self.channel connectToPort:self.endpoint.port overUSBHub:PTUSBHub.sharedHub deviceID:self.endpoint.deviceID callback:^(NSError *error) {
+    _state = PVConnectionStateConnecting;
+    PTChannel *channel = [PTChannel channelWithDelegate:(id<PTChannelDelegate>)self];
+    self.channel = channel;
+    [channel connectToPort:self.endpoint.port overUSBHub:PTUSBHub.sharedHub deviceID:self.endpoint.deviceID callback:^(NSError *error) {
         if (error) {
             [self cleanupChannel];
-            self.state = PVConnectionStateFailed;
+            self->_state = PVConnectionStateFailed;
             if (completion) completion(error);
             return;
         }
-        self.state = PVConnectionStateConnected;
+        self->_state = PVConnectionStateConnected;
         if ([self.delegate respondsToSelector:@selector(connectionDidOpen:)]) {
             [self.delegate connectionDidOpen:self];
         }

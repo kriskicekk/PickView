@@ -6,7 +6,6 @@
 //
 
 #import "PVSimulatorConnection.h"
-#import "../../PickViewCore/Connection/PVConnectionInternal.h"
 #import "PVSimulatorEndpoint.h"
 #import "PVFrame.h"
 #import "PVErrorCode.h"
@@ -38,17 +37,18 @@
         return;
     }
 
-    self.state = PVConnectionStateConnecting;
-    self.channel = [PTChannel channelWithDelegate:self];
-    [self.channel connectToPort:self.endpoint.port IPv4Address:INADDR_LOOPBACK callback:^(NSError *error, PTAddress *address) {
+    _state = PVConnectionStateConnecting;
+    PTChannel *channel = [PTChannel channelWithDelegate:(id<PTChannelDelegate>)self];
+    self.channel = channel;
+    [channel connectToPort:self.endpoint.port IPv4Address:INADDR_LOOPBACK callback:^(NSError *error, PTAddress *address) {
         if (error) {
             [self cleanupChannel];
-            self.state = PVConnectionStateFailed;
+            self->_state = PVConnectionStateFailed;
             if (completion) completion(error);
             return;
         }
 
-        self.state = PVConnectionStateConnected;
+        self->_state = PVConnectionStateConnected;
         if ([self.delegate respondsToSelector:@selector(connectionDidOpen:)]) {
             [self.delegate connectionDidOpen:self];
         }

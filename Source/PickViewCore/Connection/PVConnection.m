@@ -5,10 +5,16 @@
 //  Created by kris cheng on 2026/7/6.
 //
 
-#import "PVConnectionInternal.h"
+#import "PVConnection.h"
 #import "PVConnectionDelegate.h"
 #import "PVConnectionState.h"
 #import "PVFrame.h"
+
+#import <PeerTalk/PTChannel.h>
+
+@interface PVConnection () <PTChannelDelegate>
+
+@end
 
 @implementation PVConnection
 
@@ -25,9 +31,9 @@
         return;
     }
 
-    self.state = PVConnectionStateClosing;
+    _state = PVConnectionStateClosing;
     [self cleanupChannel];
-    self.state = PVConnectionStateClosed;
+    _state = PVConnectionStateClosed;
 }
 
 - (void)cleanupChannel {
@@ -68,11 +74,10 @@
 
     self.channel = nil;
     channel.delegate = nil;
-    self.state = error ? PVConnectionStateFailed : PVConnectionStateClosed;
+    _state = error ? PVConnectionStateFailed : PVConnectionStateClosed;
     if ([self.delegate respondsToSelector:@selector(connection:didCloseWithError:)]) {
         [self.delegate connection:self didCloseWithError:error];
     }
 }
 
 @end
-
