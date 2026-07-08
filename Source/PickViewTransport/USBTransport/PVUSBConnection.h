@@ -16,8 +16,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PVUSBConnection : PVConnection
 
-@property (nonatomic, strong, readonly) PVUSBEndpoint *endpoint;
-
 - (instancetype)initWithEndpoint:(PVUSBEndpoint *)endpoint NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 

@@ -21,7 +21,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _state = PVConnectionStateIdle;
+        [self updateState:PVConnectionStateIdle];
     }
     return self;
 }
@@ -31,9 +31,13 @@
         return;
     }
 
-    _state = PVConnectionStateClosing;
+    [self updateState:PVConnectionStateClosing];
     [self cleanupChannel];
-    _state = PVConnectionStateClosed;
+    [self updateState:PVConnectionStateClosed];
+}
+
+- (void)updateState:(PVConnectionState)state {
+    _state = state;
 }
 
 - (void)cleanupChannel {
@@ -74,7 +78,7 @@
 
     self.channel = nil;
     channel.delegate = nil;
-    _state = error ? PVConnectionStateFailed : PVConnectionStateClosed;
+    [self updateState:error ? PVConnectionStateFailed : PVConnectionStateClosed];
     if ([self.delegate respondsToSelector:@selector(connection:didCloseWithError:)]) {
         [self.delegate connection:self didCloseWithError:error];
     }

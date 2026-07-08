@@ -19,10 +19,10 @@
 
 @interface PVClientSession ()
 @property (nonatomic, strong) id<PVConnectionProtocol> connection;
-@property (nonatomic, assign) PVClientSessionState state;
 @property (nonatomic, strong) PVPeerIdentity *peerIdentity;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, PVPendingRequest *> *pendingRequests;
 @property (nonatomic, assign) uint32_t nextTag;
+@property (nonatomic, assign) BOOL didNotifyClose;
 @end
 
 @implementation PVClientSession
@@ -36,6 +36,14 @@
         _state = PVClientSessionStateIdle;
     }
     return self;
+}
+
+- (id<PVEndpointProtocol>)endpoint {
+    return self.connection.endpoint;
+}
+
+- (NSString *)identifier {
+    return self.connection.connectionIdentifier;
 }
 
 - (void)openWithCompletion:(void (^)(NSError * _Nullable))completion {
@@ -137,6 +145,7 @@
 }
 
 - (void)close {
+    self.didNotifyClose = YES;
     NSError *error = [NSError errorWithDomain:PVErrorDomain
                                          code:PVErrorCodeDisconnected
                                      userInfo:@{NSLocalizedDescriptionKey: @"Client session closed."}];
@@ -209,6 +218,11 @@
 }
 
 - (void)connection:(id<PVConnectionProtocol>)connection didCloseWithError:(NSError *)error {
+    if (connection != self.connection || self.didNotifyClose) {
+        return;
+    }
+
+    self.didNotifyClose = YES;
     self.state = PVClientSessionStateDisconnected;
     NSError *closeError = error ?: [NSError errorWithDomain:PVErrorDomain
                                                        code:PVErrorCodeDisconnected
@@ -216,6 +230,9 @@
     NSArray<NSNumber *> *tags = self.pendingRequests.allKeys;
     for (NSNumber *tag in tags) {
         [self finishRequestWithTag:tag.unsignedIntValue payload:nil error:closeError];
+    }
+    if ([self.delegate respondsToSelector:@selector(clientSession:didCloseWithError:)]) {
+        [self.delegate clientSession:self didCloseWithError:closeError];
     }
 }
 

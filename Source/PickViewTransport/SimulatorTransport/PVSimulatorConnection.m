@@ -13,16 +13,12 @@
 
 #import <PeerTalk/PTChannel.h>
 
-@interface PVSimulatorConnection ()
-@property (nonatomic, strong) PVSimulatorEndpoint *endpoint;
-@end
-
 @implementation PVSimulatorConnection
 
 - (instancetype)initWithEndpoint:(PVSimulatorEndpoint *)endpoint {
     self = [super init];
     if (self) {
-        _endpoint = endpoint;
+        self.endpoint = endpoint;
     }
     return self;
 }
@@ -37,18 +33,19 @@
         return;
     }
 
-    _state = PVConnectionStateConnecting;
+    [self updateState:PVConnectionStateConnecting];
     PTChannel *channel = [PTChannel channelWithDelegate:(id<PTChannelDelegate>)self];
     self.channel = channel;
-    [channel connectToPort:self.endpoint.port IPv4Address:INADDR_LOOPBACK callback:^(NSError *error, PTAddress *address) {
+    PVSimulatorEndpoint *endpoint = (PVSimulatorEndpoint *)self.endpoint;
+    [channel connectToPort:endpoint.port IPv4Address:INADDR_LOOPBACK callback:^(NSError *error, PTAddress *address) {
         if (error) {
             [self cleanupChannel];
-            self->_state = PVConnectionStateFailed;
+            [self updateState:PVConnectionStateFailed];
             if (completion) completion(error);
             return;
         }
 
-        self->_state = PVConnectionStateConnected;
+        [self updateState:PVConnectionStateConnected];
         if ([self.delegate respondsToSelector:@selector(connectionDidOpen:)]) {
             [self.delegate connectionDidOpen:self];
         }

@@ -11,6 +11,7 @@
 #import "PVAppInfoHandler.h"
 #import "PVCompositeRequestHandler.h"
 #import "PVConnectionProtocol.h"
+#import "PVLANListener.h"
 #import "PVListenerProtocol.h"
 #import "PVLocalLoopbackListener.h"
 #import "PVMessageHandler.h"
@@ -19,9 +20,10 @@
 
 #import <TargetConditionals.h>
 
-@interface PickViewServer () <PVListenerDelegate>
+@interface PickViewServer () <PVListenerDelegate, PVServerSessionDelegate>
 @property (nonatomic, strong) PickViewServerConfiguration *configuration;
 @property (nonatomic, strong, nullable) PVLocalLoopbackListener *localLoopbackListener;
+@property (nonatomic, strong, nullable) PVLANListener *lanListener;
 @property (nonatomic, strong) NSMutableArray<PVServerSession *> *sessions;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVServerSession *> *sessionsDict;
 @property (nonatomic, strong) NSMutableArray<id<PVRequestHandlerProtocol>> *customHandlers;
@@ -55,7 +57,7 @@
 }
 
 - (void)startWithConfiguration:(PickViewServerConfiguration *)configuration {
-    if (self.isRunning || self.localLoopbackListener) {
+    if (self.isRunning || self.localLoopbackListener || self.lanListener) {
         [self stop];
     }
 
@@ -65,6 +67,12 @@
         self.localLoopbackListener = [[PVLocalLoopbackListener alloc] initWithPortRangeStart:self.configuration.portStart end:self.configuration.portEnd];
         self.localLoopbackListener.delegate = self;
         [self startListener:self.localLoopbackListener];
+    }
+
+    if ([self shouldStartLANTransport]) {
+        self.lanListener = [[PVLANListener alloc] initWithServiceName:self.configuration.lanServiceName];
+        self.lanListener.delegate = self;
+        [self startListener:self.lanListener];
     }
 }
 
@@ -85,6 +93,9 @@
 
     [self.localLoopbackListener stop];
     self.localLoopbackListener = nil;
+
+    [self.lanListener stop];
+    self.lanListener = nil;
 
     self.running = NO;
 }
@@ -133,6 +144,9 @@
     if ([listener isKindOfClass:PVLocalLoopbackListener.class]) {
         return ((PVLocalLoopbackListener *)listener).listeningPort;
     }
+    if ([listener isKindOfClass:PVLANListener.class]) {
+        return ((PVLANListener *)listener).listeningPort;
+    }
     return 0;
 }
 
@@ -172,6 +186,7 @@
 
 - (void)listener:(id<PVListenerProtocol>)listener didAcceptConnection:(id<PVConnectionProtocol>)connection {
     PVServerSession *session = [[PVServerSession alloc] initWithConnection:connection requestHandler:[self makeRequestHandler]];
+    session.delegate = self;
     [self.sessions addObject:session];
     self.sessionsDict[connection.connectionIdentifier] = session;
     [session start];
@@ -187,6 +202,17 @@
         [session close];
         NSLog(@"[PickView Server]:%@ did close connection %@", [listener.class description], connection.connectionIdentifier);
     }
+}
+
+#pragma mark - PVServerSessionDelegate
+
+- (void)serverSession:(PVServerSession *)session didCloseWithError:(NSError *)error {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.sessionsDict[session.connection.connectionIdentifier] == session) {
+            [self.sessionsDict removeObjectForKey:session.connection.connectionIdentifier];
+            [self.sessions removeObject:session];
+        }
+    });
 }
 
 @end

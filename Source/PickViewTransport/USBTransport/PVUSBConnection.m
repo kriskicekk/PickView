@@ -14,16 +14,12 @@
 #import <PeerTalk/PTChannel.h>
 #import <PeerTalk/PTUSBHub.h>
 
-@interface PVUSBConnection ()
-@property (nonatomic, strong) PVUSBEndpoint *endpoint;
-@end
-
 @implementation PVUSBConnection
 
 - (instancetype)initWithEndpoint:(PVUSBEndpoint *)endpoint {
     self = [super init];
     if (self) {
-        _endpoint = endpoint;
+        self.endpoint = endpoint;
     }
     return self;
 }
@@ -38,17 +34,18 @@
         return;
     }
 
-    _state = PVConnectionStateConnecting;
+    [self updateState:PVConnectionStateConnecting];
     PTChannel *channel = [PTChannel channelWithDelegate:(id<PTChannelDelegate>)self];
     self.channel = channel;
-    [channel connectToPort:self.endpoint.port overUSBHub:PTUSBHub.sharedHub deviceID:self.endpoint.deviceID callback:^(NSError *error) {
+    PVUSBEndpoint *endpoint = (PVUSBEndpoint *)self.endpoint;
+    [channel connectToPort:endpoint.port overUSBHub:PTUSBHub.sharedHub deviceID:endpoint.deviceID callback:^(NSError *error) {
         if (error) {
             [self cleanupChannel];
-            self->_state = PVConnectionStateFailed;
+            [self updateState:PVConnectionStateFailed];
             if (completion) completion(error);
             return;
         }
-        self->_state = PVConnectionStateConnected;
+        [self updateState:PVConnectionStateConnected];
         if ([self.delegate respondsToSelector:@selector(connectionDidOpen:)]) {
             [self.delegate connectionDidOpen:self];
         }

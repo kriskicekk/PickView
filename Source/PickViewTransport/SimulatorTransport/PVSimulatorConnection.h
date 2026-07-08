@@ -16,8 +16,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PVSimulatorConnection : PVConnection
 
-@property (nonatomic, strong, readonly) PVSimulatorEndpoint *endpoint;
-
 - (instancetype)initWithEndpoint:(PVSimulatorEndpoint *)endpoint NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 

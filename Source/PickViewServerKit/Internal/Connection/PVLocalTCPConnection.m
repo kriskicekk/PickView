@@ -17,8 +17,8 @@
     self = [super init];
     if (self) {
         self.channel = channel;
-        channel.delegate = (id<PTChannelDelegate>)self;
-        _state = PVConnectionStateConnected;
+        self.channel.delegate = (id<PTChannelDelegate>)self;
+        [self updateState:PVConnectionStateConnected];
     }
     return self;
 }

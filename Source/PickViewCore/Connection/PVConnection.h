@@ -15,16 +15,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PVConnection : NSObject <PVConnectionProtocol> {
-@protected
-    PVConnectionState _state;
-}
+@interface PVConnection : NSObject <PVConnectionProtocol>
 
 @property (nonatomic, copy, readonly) NSString *connectionIdentifier;
 @property (nonatomic, assign, readonly) PVConnectionState state;
 @property (nonatomic, weak, nullable) id<PVConnectionDelegate> delegate;
 @property (nonatomic, strong, nullable) PTChannel *channel;
+@property (nonatomic, strong) id<PVEndpointProtocol> endpoint;
 
+- (void)updateState:(PVConnectionState)state;
 - (void)cleanupChannel;
 
 @end

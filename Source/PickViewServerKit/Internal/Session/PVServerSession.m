@@ -62,5 +62,10 @@
     }];
 }
 
-@end
+- (void)connection:(id<PVConnectionProtocol>)connection didCloseWithError:(NSError *)error {
+    if ([self.delegate respondsToSelector:@selector(serverSession:didCloseWithError:)]) {
+        [self.delegate serverSession:self didCloseWithError:error];
+    }
+}
 
+@end

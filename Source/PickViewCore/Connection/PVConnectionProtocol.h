@@ -13,6 +13,7 @@
 
 @class PVFrame;
 @protocol PVConnectionDelegate;
+@protocol PVEndpointProtocol;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -21,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, readonly) NSString *connectionIdentifier;
 @property (nonatomic, assign, readonly) PVConnectionState state;
 @property (nonatomic, weak, nullable) id<PVConnectionDelegate> delegate;
+@property (nonatomic, strong) id<PVEndpointProtocol> endpoint;
 
 - (void)connectWithCompletion:(void (^)(NSError * _Nullable error))completion;
 - (void)sendFrame:(PVFrame *)frame completion:(nullable void (^)(NSError * _Nullable error))completion;
