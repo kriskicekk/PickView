@@ -55,6 +55,7 @@
 				PickViewServerKit/Internal/Connection/PVLocalTCPConnection.m,
 				PickViewServerKit/Internal/Handlers/PVAppInfoHandler.m,
 				PickViewServerKit/Internal/Handlers/PVCompositeRequestHandler.m,
+				PickViewServerKit/Internal/Handlers/PVHeartbeatHandler.m,
 				PickViewServerKit/Internal/Handlers/PVMessageHandler.m,
 				PickViewServerKit/Internal/Listener/PVLANListener.m,
 				PickViewServerKit/Internal/Listener/PVLocalLoopbackListener.m,

@@ -15,7 +15,8 @@ typedef NS_ENUM(uint32_t, PVRequestType) {
     PVRequestTypeHierarchyDetails = 203,
     PVRequestTypeModifyAttribute = 204,
     PVRequestTypeMessage = 205,
-    PVRequestTypeInvokeMethod = 206
+    PVRequestTypeInvokeMethod = 206,
+    PVRequestTypeHeartbeat = 207
 };
 
 #endif /* PVRequestType_h */

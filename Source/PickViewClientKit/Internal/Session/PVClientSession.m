@@ -16,6 +16,11 @@
 #import "PVUtils.h"
 #import "PVPeerIdentityConstant.h"
 #import "PVPeerIdentity.h"
+#import "PVLANEndpoint.h"
+
+static NSTimeInterval const PVClientSessionHeartbeatInterval = 3.0;
+static NSTimeInterval const PVClientSessionHeartbeatTimeout = 2.0;
+static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
 
 @interface PVClientSession ()
 @property (nonatomic, strong) id<PVConnectionProtocol> connection;
@@ -23,6 +28,19 @@
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, PVPendingRequest *> *pendingRequests;
 @property (nonatomic, assign) uint32_t nextTag;
 @property (nonatomic, assign) BOOL didNotifyClose;
+@property (nonatomic, strong, nullable) dispatch_source_t heartbeatTimer;
+@property (nonatomic, assign) uint32_t heartbeatSequence;
+@property (nonatomic, assign) NSUInteger missedHeartbeatCount;
+@property (nonatomic, assign) BOOL heartbeatInFlight;
+
+- (void)finishWithCloseError:(NSError *)error closeConnection:(BOOL)closeConnection notifyDelegate:(BOOL)notifyDelegate;
+- (void)finishPendingRequestsWithError:(NSError *)error;
+- (void)startHeartbeatIfNeed;
+- (void)stopHeartbeat;
+- (void)sendHeartbeatIfNeeded;
+- (uint32_t)nextHeartbeatSequence;
+- (NSData *)heartbeatPayloadWithSequence:(uint32_t)sequence;
+- (void)handleHeartbeatFailure:(NSError *)error;
 @end
 
 @implementation PVClientSession
@@ -57,13 +75,15 @@
         self.state = PVClientSessionStateHandshaking;
         [self validateVersionWithCompletion:^(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable error) {
             if (error) {
+                [self stopHeartbeat];
                 [self.connection close];
                 self.state = PVClientSessionStateFailed;
                 if (completion) completion(error);
                 return;
             }
-            self.state = PVClientSessionStateReady;
             self.peerIdentity = peerIdentity;
+            self.state = PVClientSessionStateReady;
+            [self startHeartbeatIfNeed];
             if (completion) completion(nil);
         }];
     }];
@@ -145,16 +165,36 @@
 }
 
 - (void)close {
-    self.didNotifyClose = YES;
     NSError *error = [NSError errorWithDomain:PVErrorDomain
                                          code:PVErrorCodeDisconnected
                                      userInfo:@{NSLocalizedDescriptionKey: @"Client session closed."}];
+    [self finishWithCloseError:error closeConnection:YES notifyDelegate:NO];
+}
+
+- (void)finishWithCloseError:(NSError *)error closeConnection:(BOOL)closeConnection notifyDelegate:(BOOL)notifyDelegate {
+    if (self.didNotifyClose) {
+        return;
+    }
+
+    self.didNotifyClose = YES;
+    [self stopHeartbeat];
+    self.state = PVClientSessionStateDisconnected;
+    [self finishPendingRequestsWithError:error];
+
+    if (closeConnection) {
+        [self.connection close];
+    }
+
+    if (notifyDelegate && [self.delegate respondsToSelector:@selector(clientSession:didCloseWithError:)]) {
+        [self.delegate clientSession:self didCloseWithError:error];
+    }
+}
+
+- (void)finishPendingRequestsWithError:(NSError *)error {
     NSArray<NSNumber *> *tags = self.pendingRequests.allKeys;
     for (NSNumber *tag in tags) {
         [self finishRequestWithTag:tag.unsignedIntValue payload:nil error:error];
     }
-    [self.connection close];
-    self.state = PVClientSessionStateDisconnected;
 }
 
 - (uint32_t)nextRequestTag {
@@ -211,6 +251,97 @@
     return YES;
 }
 
+- (void)startHeartbeatIfNeed {
+    if (![self.endpoint isKindOfClass:PVLANEndpoint.class]) return;
+    [self stopHeartbeat];
+    self.missedHeartbeatCount = 0;
+    self.heartbeatInFlight = NO;
+
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_time_t startTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(PVClientSessionHeartbeatInterval * NSEC_PER_SEC));
+    uint64_t interval = (uint64_t)(PVClientSessionHeartbeatInterval * NSEC_PER_SEC);
+    uint64_t leeway = (uint64_t)(0.3 * NSEC_PER_SEC);
+    dispatch_source_set_timer(timer, startTime, interval, leeway);
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_source_set_event_handler(timer, ^{
+        __strong typeof(weakSelf) self = weakSelf;
+        if (!self) return;
+        [self sendHeartbeatIfNeeded];
+    });
+
+    self.heartbeatTimer = timer;
+    dispatch_resume(timer);
+}
+
+- (void)stopHeartbeat {
+    if (self.heartbeatTimer) {
+        dispatch_source_cancel(self.heartbeatTimer);
+        self.heartbeatTimer = nil;
+    }
+    self.heartbeatInFlight = NO;
+    self.missedHeartbeatCount = 0;
+}
+
+- (void)sendHeartbeatIfNeeded {
+    if (self.state != PVClientSessionStateReady || self.heartbeatInFlight) {
+        return;
+    }
+
+    self.heartbeatInFlight = YES;
+    uint32_t sequence = [self nextHeartbeatSequence];
+    NSData *payload = [self heartbeatPayloadWithSequence:sequence];
+
+    __weak typeof(self) weakSelf = self;
+    [self sendRequestType:PVRequestTypeHeartbeat payload:payload timeoutInterval:PVClientSessionHeartbeatTimeout completion:^(NSData * _Nullable responsePayload, NSError * _Nullable error) {
+        __strong typeof(weakSelf) self = weakSelf;
+        if (!self || self.state != PVClientSessionStateReady) {
+            return;
+        }
+
+        self.heartbeatInFlight = NO;
+        if (error) {
+            [self handleHeartbeatFailure:error];
+            return;
+        }
+
+        self.missedHeartbeatCount = 0;
+    }];
+}
+
+- (uint32_t)nextHeartbeatSequence {
+    self.heartbeatSequence += 1;
+    if (self.heartbeatSequence == 0) {
+        self.heartbeatSequence = 1;
+    }
+    return self.heartbeatSequence;
+}
+
+- (NSData *)heartbeatPayloadWithSequence:(uint32_t)sequence {
+    NSDictionary *payload = @{
+        @"sequence": @(sequence),
+        @"timestamp": @([[NSDate date] timeIntervalSince1970])
+    };
+    return [NSPropertyListSerialization dataWithPropertyList:payload
+                                                      format:NSPropertyListBinaryFormat_v1_0
+                                                     options:0
+                                                       error:nil];
+}
+
+- (void)handleHeartbeatFailure:(NSError *)error {
+    self.missedHeartbeatCount += 1;
+    if (self.missedHeartbeatCount < PVClientSessionMaxMissedHeartbeats) {
+        return;
+    }
+
+    NSMutableDictionary *userInfo = [@{NSLocalizedDescriptionKey: @"Heartbeat timed out."} mutableCopy];
+    if (error) {
+        userInfo[NSUnderlyingErrorKey] = error;
+    }
+    NSError *closeError = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeTimeout userInfo:userInfo];
+    [self finishWithCloseError:closeError closeConnection:YES notifyDelegate:YES];
+}
+
 #pragma mark - PVConnectionDelegate
 
 - (void)connection:(id<PVConnectionProtocol>)connection didReceiveFrame:(PVFrame *)frame {
@@ -222,18 +353,10 @@
         return;
     }
 
-    self.didNotifyClose = YES;
-    self.state = PVClientSessionStateDisconnected;
     NSError *closeError = error ?: [NSError errorWithDomain:PVErrorDomain
                                                        code:PVErrorCodeDisconnected
                                                    userInfo:@{NSLocalizedDescriptionKey: @"Connection closed."}];
-    NSArray<NSNumber *> *tags = self.pendingRequests.allKeys;
-    for (NSNumber *tag in tags) {
-        [self finishRequestWithTag:tag.unsignedIntValue payload:nil error:closeError];
-    }
-    if ([self.delegate respondsToSelector:@selector(clientSession:didCloseWithError:)]) {
-        [self.delegate clientSession:self didCloseWithError:closeError];
-    }
+    [self finishWithCloseError:closeError closeConnection:NO notifyDelegate:YES];
 }
 
 @end

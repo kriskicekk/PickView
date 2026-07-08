@@ -79,7 +79,7 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
         [self.usbDiscoverer start];
     }
 
-    if (self.configuration.enableSimulatorDiscovery) {
+    if (!self.configuration.enableSimulatorDiscovery) {
         self.simulatorDiscoverer = [[PVSimulatorEndpointDiscoverer alloc] init];
         self.simulatorDiscoverer.delegate = self;
         [self.simulatorDiscoverer start];

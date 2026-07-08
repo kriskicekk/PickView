@@ -11,14 +11,58 @@
 #import "PVAppInfoHandler.h"
 #import "PVCompositeRequestHandler.h"
 #import "PVConnectionProtocol.h"
+#import "PVHeartbeatHandler.h"
 #import "PVLANListener.h"
 #import "PVListenerProtocol.h"
 #import "PVLocalLoopbackListener.h"
 #import "PVMessageHandler.h"
+#import "PVPeerIdentity.h"
 #import "PVRequestHandlerProtocol.h"
 #import "PVServerSession.h"
 
 #import <TargetConditionals.h>
+
+static NSUInteger const PVLANBonjourServiceNameMaxBytes = 63;
+
+static NSString *PVStringByTrimmingToUTF8ByteLength(NSString *string, NSUInteger maxBytes) {
+    if ([string lengthOfBytesUsingEncoding:NSUTF8StringEncoding] <= maxBytes) {
+        return string;
+    }
+
+    NSMutableString *result = [NSMutableString string];
+    __block NSUInteger usedBytes = 0;
+    [string enumerateSubstringsInRange:NSMakeRange(0, string.length)
+                               options:NSStringEnumerationByComposedCharacterSequences
+                            usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
+        NSUInteger substringBytes = [substring lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+        if (usedBytes + substringBytes > maxBytes) {
+            *stop = YES;
+            return;
+        }
+
+        [result appendString:substring];
+        usedBytes += substringBytes;
+    }];
+    return result.copy;
+}
+
+static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
+    NSString *name = baseName.length ? baseName : @"PickView";
+    NSString *peerID = [PVPeerIdentity sharedIdentity].uuid;
+    if (!peerID.length || [name containsString:peerID]) {
+        return name;
+    }
+
+    NSString *suffix = [NSString stringWithFormat:@"-%@", peerID];
+    NSUInteger suffixBytes = [suffix lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (suffixBytes >= PVLANBonjourServiceNameMaxBytes) {
+        return PVStringByTrimmingToUTF8ByteLength(peerID, PVLANBonjourServiceNameMaxBytes);
+    }
+
+    NSUInteger maxBaseBytes = PVLANBonjourServiceNameMaxBytes - suffixBytes;
+    NSString *trimmedName = PVStringByTrimmingToUTF8ByteLength(name, maxBaseBytes);
+    return [trimmedName stringByAppendingString:suffix];
+}
 
 @interface PickViewServer () <PVListenerDelegate, PVServerSessionDelegate>
 @property (nonatomic, strong) PickViewServerConfiguration *configuration;
@@ -70,7 +114,8 @@
     }
 
     if ([self shouldStartLANTransport]) {
-        self.lanListener = [[PVLANListener alloc] initWithServiceName:self.configuration.lanServiceName];
+        NSString *lanServiceName = PVLANServiceNameWithPeerID(self.configuration.lanServiceName);
+        self.lanListener = [[PVLANListener alloc] initWithServiceName:lanServiceName];
         self.lanListener.delegate = self;
         [self startListener:self.lanListener];
     }
@@ -108,6 +153,7 @@
 
 - (PVCompositeRequestHandler *)makeRequestHandler {
     NSMutableArray<id<PVRequestHandlerProtocol>> *handlers = [NSMutableArray array];
+    [handlers addObject:[[PVHeartbeatHandler alloc] init]];
     if (self.configuration.enableMessageHandler) {
         __weak typeof(self) weakSelf = self;
         PVMessageHandler *messageHandler = [[PVMessageHandler alloc] initWithReceiveBlock:^(NSString *message) {
