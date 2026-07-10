@@ -21,13 +21,13 @@
 #import "PVLANConnection.h"
 #import "PVLANEndpoint.h"
 #import "PVLANEndpointDiscoverer.h"
+#import "PVLoopbackConnection.h"
+#import "PVLoopbackEndpoint.h"
+#import "PVLoopbackEndpointDiscoverer.h"
 #import "PVPeerIdentity.h"
 #import "PVRequestAttachment.h"
 #import "PVRequestType.h"
 #import "PVResponseAttachment.h"
-#import "PVSimulatorConnection.h"
-#import "PVSimulatorEndpoint.h"
-#import "PVSimulatorEndpointDiscoverer.h"
 #import "PVUSBConnection.h"
 #import "PVUSBEndpoint.h"
 #import "PVUSBEndpointDiscoverer.h"
@@ -40,7 +40,7 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
 
 @property (nonatomic, strong) PickViewClientConfiguration *configuration;
 @property (nonatomic, strong, nullable) PVUSBEndpointDiscoverer *usbDiscoverer;
-@property (nonatomic, strong, nullable) PVSimulatorEndpointDiscoverer *simulatorDiscoverer;
+@property (nonatomic, strong, nullable) PVLoopbackEndpointDiscoverer *loopbackDiscoverer;
 @property (nonatomic, strong, nullable) PVLANEndpointDiscoverer *lanDiscoverer;
 
 @property (nonatomic, strong) PVClientSessionManager *sessionManager;
@@ -87,10 +87,10 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
         [self.usbDiscoverer start];
     }
 
-    if (self.configuration.enableSimulatorDiscovery) {
-        self.simulatorDiscoverer = [[PVSimulatorEndpointDiscoverer alloc] init];
-        self.simulatorDiscoverer.delegate = self;
-        [self.simulatorDiscoverer start];
+    if (self.configuration.enableLoopbackDiscovery) {
+        self.loopbackDiscoverer = [[PVLoopbackEndpointDiscoverer alloc] init];
+        self.loopbackDiscoverer.delegate = self;
+        [self.loopbackDiscoverer start];
     }
 
     if (self.configuration.enableLANDiscovery) {
@@ -100,7 +100,7 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
         [self notifyLog:@"started LAN discovery"];
     }
 
-    [self notifyStatus:@"Waiting for USB device, simulator, or LAN service..."];
+    [self notifyStatus:@"Waiting for USB device, local app, or LAN service..."];
     [self scanNow];
     if (self.configuration.scanInterval > 0) {
         self.scanTimer = [NSTimer scheduledTimerWithTimeInterval:self.configuration.scanInterval
@@ -267,8 +267,8 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
     [self.usbDiscoverer stop];
     self.usbDiscoverer = nil;
 
-    [self.simulatorDiscoverer stop];
-    self.simulatorDiscoverer = nil;
+    [self.loopbackDiscoverer stop];
+    self.loopbackDiscoverer = nil;
 
     [self.lanDiscoverer stop];
     self.lanDiscoverer = nil;
@@ -322,8 +322,8 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
     if ([endpoint isKindOfClass:PVUSBEndpoint.class]) {
         return [[PVUSBConnection alloc] initWithEndpoint:(PVUSBEndpoint *)endpoint];
     }
-    if ([endpoint isKindOfClass:PVSimulatorEndpoint.class]) {
-        return [[PVSimulatorConnection alloc] initWithEndpoint:(PVSimulatorEndpoint *)endpoint];
+    if ([endpoint isKindOfClass:PVLoopbackEndpoint.class]) {
+        return [[PVLoopbackConnection alloc] initWithEndpoint:(PVLoopbackEndpoint *)endpoint];
     }
     if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
         return [[PVLANConnection alloc] initWithEndpoint:(PVLANEndpoint *)endpoint];

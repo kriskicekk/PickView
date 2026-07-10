@@ -20,6 +20,8 @@
     newAttr.attrType = self.attrType;
     newAttr.extraValue = self.extraValue;
     newAttr.customSetterID = self.customSetterID;
+    newAttr.modificationTargetOid = self.modificationTargetOid;
+    newAttr.modificationSetterName = self.modificationSetterName;
     return newAttr;
 }
 
@@ -32,6 +34,8 @@
     [aCoder encodeObject:self.value forKey:@"value"];
     [aCoder encodeObject:self.extraValue forKey:@"extraValue"];
     [aCoder encodeObject:self.customSetterID forKey:@"customSetterID"];
+    [aCoder encodeObject:@(self.modificationTargetOid) forKey:@"modificationTargetOid"];
+    [aCoder encodeObject:self.modificationSetterName forKey:@"modificationSetterName"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder {
@@ -42,6 +46,8 @@
         self.value = [aDecoder decodeObjectForKey:@"value"];
         self.extraValue = [aDecoder decodeObjectForKey:@"extraValue"];
         self.customSetterID = [aDecoder decodeObjectForKey:@"customSetterID"];
+        self.modificationTargetOid = [[aDecoder decodeObjectForKey:@"modificationTargetOid"] unsignedLongValue];
+        self.modificationSetterName = [aDecoder decodeObjectForKey:@"modificationSetterName"];
     }
     return self;
 }
@@ -55,4 +61,3 @@
 }
 
 @end
-

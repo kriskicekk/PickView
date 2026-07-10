@@ -1,18 +1,18 @@
 //
-//  PVLocalLoopbackListener.h
+//  PVLoopbackListener.h
 //  PickViewServer
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#ifndef PVLocalLoopbackListener_h
-#define PVLocalLoopbackListener_h
+#ifndef PVLoopbackListener_h
+#define PVLoopbackListener_h
 
 #import "PVListenerProtocol.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PVLocalLoopbackListener : NSObject <PVListenerProtocol>
+@interface PVLoopbackListener : NSObject <PVListenerProtocol>
 
 @property (nonatomic, weak, nullable) id<PVListenerDelegate> delegate;
 @property (nonatomic, assign, readonly) int listeningPort;
@@ -24,4 +24,4 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-#endif /* PVLocalLoopbackListener_h */
+#endif /* PVLoopbackListener_h */

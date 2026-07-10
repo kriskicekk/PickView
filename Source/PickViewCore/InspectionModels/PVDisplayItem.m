@@ -79,10 +79,18 @@
 #if TARGET_OS_IPHONE
     [coder encodeCGRect:self.frame forKey:@"frame"];
     [coder encodeCGRect:self.bounds forKey:@"bounds"];
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
     [coder encodeRect:self.frame forKey:@"frame"];
     [coder encodeRect:self.bounds forKey:@"bounds"];
 #endif
+    [coder encodeDouble:CGRectGetMinX(self.frame) forKey:@"frame.x"];
+    [coder encodeDouble:CGRectGetMinY(self.frame) forKey:@"frame.y"];
+    [coder encodeDouble:CGRectGetWidth(self.frame) forKey:@"frame.width"];
+    [coder encodeDouble:CGRectGetHeight(self.frame) forKey:@"frame.height"];
+    [coder encodeDouble:CGRectGetMinX(self.bounds) forKey:@"bounds.x"];
+    [coder encodeDouble:CGRectGetMinY(self.bounds) forKey:@"bounds.y"];
+    [coder encodeDouble:CGRectGetWidth(self.bounds) forKey:@"bounds.width"];
+    [coder encodeDouble:CGRectGetHeight(self.bounds) forKey:@"bounds.height"];
     if (self.screenshotEncodeType == PVDisplayItemImageEncodeTypeNSData) {
         [coder encodeObject:[self.soloScreenshot pv_inspect_encodedObjectWithType:PVCodingValueTypeImage] forKey:@"soloScreenshot"];
         [coder encodeObject:[self.groupScreenshot pv_inspect_encodedObjectWithType:PVCodingValueTypeImage] forKey:@"groupScreenshot"];
@@ -121,10 +129,22 @@
 #if TARGET_OS_IPHONE
         _frame = [coder decodeCGRectForKey:@"frame"];
         _bounds = [coder decodeCGRectForKey:@"bounds"];
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
         _frame = [coder decodeRectForKey:@"frame"];
         _bounds = [coder decodeRectForKey:@"bounds"];
 #endif
+        if ([coder containsValueForKey:@"frame.width"]) {
+            _frame = CGRectMake([coder decodeDoubleForKey:@"frame.x"],
+                                [coder decodeDoubleForKey:@"frame.y"],
+                                [coder decodeDoubleForKey:@"frame.width"],
+                                [coder decodeDoubleForKey:@"frame.height"]);
+        }
+        if ([coder containsValueForKey:@"bounds.width"]) {
+            _bounds = CGRectMake([coder decodeDoubleForKey:@"bounds.x"],
+                                 [coder decodeDoubleForKey:@"bounds.y"],
+                                 [coder decodeDoubleForKey:@"bounds.width"],
+                                 [coder decodeDoubleForKey:@"bounds.height"]);
+        }
         id soloScreenshotObj = [coder decodeObjectForKey:@"soloScreenshot"];
         if ([soloScreenshotObj isKindOfClass:NSData.class]) {
             _soloScreenshot = [soloScreenshotObj pv_inspect_decodedObjectWithType:PVCodingValueTypeImage];

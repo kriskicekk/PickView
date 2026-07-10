@@ -5,7 +5,7 @@
 //  Created by kris cheng on 2026/7/9.
 //
 
-#import "Image+PVInspect.h"
+#import "Color+PVInspect.h"
 
 #if TARGET_OS_IPHONE
 
@@ -56,7 +56,7 @@
 
 @end
 
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
 
 @implementation NSColor (PickView)
 

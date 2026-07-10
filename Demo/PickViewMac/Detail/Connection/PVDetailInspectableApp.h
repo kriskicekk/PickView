@@ -10,6 +10,7 @@
 #import "PVAttributeModification.h"
 #import "PVCustomAttrModification.h"
 #import "PVAttributesGroup.h"
+#import "PVPeerIdentity.h"
 
 @class PVClientChannel, PVClientSession, PVDisplayItemTrace, PVInvocationRequest, PVHierarchyInfo, PVStaticAsyncUpdateTasksPackage, PVStaticAsyncUpdateTask;
 
@@ -21,6 +22,8 @@
 
 @property(nonatomic, weak) PVClientChannel *channel;
 @property(nonatomic, strong) PVClientSession *session;
+
+- (BOOL)supportsCapability:(PVPeerCapability)capability;
 
 - (RACSignal *)fetchHierarchyData;
 

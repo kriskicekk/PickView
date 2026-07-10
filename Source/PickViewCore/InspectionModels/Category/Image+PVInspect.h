@@ -17,7 +17,7 @@
 
 @end
 
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 
 @interface NSImage (PVInspect)

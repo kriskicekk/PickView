@@ -287,12 +287,16 @@
         
         PVAttributeModification *modification = [PVAttributeModification new];
         modification.clientReadableVersion = [PVDetailHelper pickviewReadableVersion];
-        if ([PVDashboardBlueprint isUIViewPropertyWithAttrID:attribute.identifier]) {
+        if (attribute.modificationTargetOid) {
+            modification.targetOid = attribute.modificationTargetOid;
+        } else if ([PVDashboardBlueprint isUIViewPropertyWithAttrID:attribute.identifier]) {
             modification.targetOid = modifyingItem.viewObject.oid;
         } else {
             modification.targetOid = modifyingItem.layerObject.oid;
         }
-        modification.setterSelector = [PVDashboardBlueprint setterWithAttrID:attribute.identifier];
+        modification.setterSelector = attribute.modificationSetterName.length
+            ? NSSelectorFromString(attribute.modificationSetterName)
+            : [PVDashboardBlueprint setterWithAttrID:attribute.identifier];
         modification.attrType = attribute.attrType;
         modification.value = newValue;
         

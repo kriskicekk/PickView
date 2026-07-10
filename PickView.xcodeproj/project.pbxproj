@@ -7,76 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		44D0E836387B62AC754E2614 /* libPods-PickViewiOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */; };
 		FA36FE5AB587F9CE14BC9CDD /* libPods-PickViewMac.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		01C2F3A62FFA99E200117803 /* PickViewiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickViewiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		01C2F3E72FFA9B5900117803 /* PickViewMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickViewMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewiOS.release.xcconfig"; path = "Target Support Files/Pods-PickViewiOS/Pods-PickViewiOS.release.xcconfig"; sourceTree = "<group>"; };
 		49D66E8D644E4B3AAC2C296D /* Pods-PickViewMac.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewMac.release.xcconfig"; path = "Target Support Files/Pods-PickViewMac/Pods-PickViewMac.release.xcconfig"; sourceTree = "<group>"; };
 		CBF849AE54BD7078528EA069 /* Pods-PickViewMac.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewMac.debug.xcconfig"; path = "Target Support Files/Pods-PickViewMac/Pods-PickViewMac.debug.xcconfig"; sourceTree = "<group>"; };
-		DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PickViewiOS.debug.xcconfig"; path = "Target Support Files/Pods-PickViewiOS/Pods-PickViewiOS.debug.xcconfig"; sourceTree = "<group>"; };
 		E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-PickViewMac.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-PickViewiOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		01C2F3FF2FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewiOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				PickViewiOS/AppDelegate.m,
-				PickViewiOS/Assets.xcassets,
-				PickViewiOS/main.m,
-			);
-			target = 01C2F3A52FFA99E200117803 /* PickViewiOS */;
-		};
 		01C2F4002FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewMac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				PickViewiOS/AppDelegate.m,
-				PickViewiOS/Assets.xcassets,
-				PickViewiOS/Info.plist,
-				PickViewiOS/main.m,
 				PickViewMac/Info.plist,
 			);
 			target = 01C2F3E62FFA9B5900117803 /* PickViewMac */;
-		};
-		01D751262FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewiOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				PickViewServerKit/Internal/Inspection/Common/PVAppInfoCollector.m,
-				PickViewServerKit/Internal/Inspection/Common/PVCustomAttrSetterManager.m,
-				"PickViewServerKit/Internal/Inspection/iOS/NSObject+PVServerTrace.m",
-				PickViewServerKit/Internal/Inspection/iOS/PVAttrGroupsMaker.m,
-				PickViewServerKit/Internal/Inspection/iOS/PVCustomAttrGroupsMaker.m,
-				PickViewServerKit/Internal/Inspection/iOS/PVInspectionObjectFactory.m,
-				PickViewServerKit/Internal/Inspection/iOS/PVIOSHierarchyProvider.m,
-				PickViewServerKit/Internal/Inspection/iOS/PVUIKitAttributeAccessors.m,
-				"PickViewServerKit/Internal/Inspection/iOS/Support/CALayer+PVInspect.m",
-				PickViewServerKit/Internal/PickViewServer.m,
-				PickViewServerKit/Internal/PickViewServerConfiguration.m,
-				PickViewServerKit/Internal/RequestHandling/PVAppInfoHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVCompositeRequestHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVHeartbeatHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVHierarchyDetailsHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVHierarchyHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVMessageHandler.m,
-				PickViewServerKit/Internal/RequestHandling/PVWindowListHandler.m,
-				PickViewServerKit/Internal/Session/PVServerSession.m,
-				PickViewTransport/Common/PVPeerTalkConnection.m,
-				PickViewTransport/LAN/PVLANConnection.m,
-				PickViewTransport/LAN/PVLANEndpoint.m,
-				PickViewTransport/LAN/PVLANEndpointDiscoverer.m,
-				PickViewTransport/LAN/Server/PVLANListener.m,
-				PickViewTransport/Simulator/Server/PVLocalLoopbackListener.m,
-				PickViewTransport/Simulator/Server/PVLocalTCPConnection.m,
-				PickViewTransport/USB/PVUSBConnection.m,
-				PickViewTransport/USB/PVUSBEndpoint.m,
-				PickViewTransport/USB/PVUSBEndpointDiscoverer.m,
-			);
-			target = 01C2F3A52FFA99E200117803 /* PickViewiOS */;
 		};
 		01D751272FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewMac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -121,6 +68,27 @@
 				PickViewCore/Wire/Legacy/PVObjectIdentity.m,
 				PickViewCore/Wire/Message/PVRequestAttachment.m,
 				PickViewCore/Wire/Message/PVResponseAttachment.m,
+				PickViewServerKit/Internal/Inspection/Common/PVAppInfoCollector.m,
+				PickViewServerKit/Internal/Inspection/Common/PVCustomAttrSetterManager.m,
+				"PickViewServerKit/Internal/Inspection/iOS/NSObject+PVServerTrace.m",
+				PickViewServerKit/Internal/Inspection/iOS/PVAttrGroupsMaker.m,
+				PickViewServerKit/Internal/Inspection/iOS/PVCustomAttrGroupsMaker.m,
+				PickViewServerKit/Internal/Inspection/iOS/PVInspectionObjectFactory.m,
+				PickViewServerKit/Internal/Inspection/iOS/PVIOSHierarchyProvider.m,
+				PickViewServerKit/Internal/Inspection/iOS/PVUIKitAttributeAccessors.m,
+				PickViewServerKit/Internal/Inspection/macOS/PVMacHierarchyProvider.m,
+				PickViewServerKit/Internal/PickViewServer.m,
+				PickViewServerKit/Internal/PickViewServerConfiguration.m,
+				PickViewServerKit/Internal/RequestHandling/PVAppInfoHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVCompositeRequestHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVHeartbeatHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVHierarchyDetailsHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVHierarchyHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVMessageHandler.m,
+				PickViewServerKit/Internal/RequestHandling/PVWindowListHandler.m,
+				PickViewServerKit/Internal/Session/PVServerSession.m,
+				PickViewTransport/LAN/Server/PVLANListener.m,
+				PickViewTransport/Loopback/Server/PVLoopbackListener.m,
 			);
 			target = 01C2F3E62FFA9B5900117803 /* PickViewMac */;
 		};
@@ -130,7 +98,6 @@
 		018CA0252FFAA0870011E464 /* Source */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				01D751262FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewiOS" target */,
 				01D751272FFB7FE900D33C3C /* Exceptions for "Source" folder in "PickViewMac" target */,
 			);
 			path = Source;
@@ -139,7 +106,6 @@
 		01C2F3FC2FFA9C1400117803 /* Demo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				01C2F3FF2FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewiOS" target */,
 				01C2F4002FFA9C5200117803 /* Exceptions for "Demo" folder in "PickViewMac" target */,
 			);
 			path = Demo;
@@ -148,14 +114,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		01C2F3A32FFA99E200117803 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				44D0E836387B62AC754E2614 /* libPods-PickViewiOS.a in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		01C2F3E42FFA9B5900117803 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -181,7 +139,6 @@
 		01C2F3A72FFA99E200117803 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				01C2F3A62FFA99E200117803 /* PickViewiOS.app */,
 				01C2F3E72FFA9B5900117803 /* PickViewMac.app */,
 			);
 			name = Products;
@@ -192,8 +149,6 @@
 			children = (
 				CBF849AE54BD7078528EA069 /* Pods-PickViewMac.debug.xcconfig */,
 				49D66E8D644E4B3AAC2C296D /* Pods-PickViewMac.release.xcconfig */,
-				DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */,
-				11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -202,7 +157,6 @@
 			isa = PBXGroup;
 			children = (
 				E13DEB08AAB46F3DFD3469DE /* libPods-PickViewMac.a */,
-				FB640C856197838E86BB8EBF /* libPods-PickViewiOS.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -210,24 +164,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		01C2F3A52FFA99E200117803 /* PickViewiOS */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 01C2F3BE2FFA99E300117803 /* Build configuration list for PBXNativeTarget "PickViewiOS" */;
-			buildPhases = (
-				5198F33B9869860C8458E034 /* [CP] Check Pods Manifest.lock */,
-				01C2F3A22FFA99E200117803 /* Sources */,
-				01C2F3A32FFA99E200117803 /* Frameworks */,
-				01C2F3A42FFA99E200117803 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = PickViewiOS;
-			productName = PickView;
-			productReference = 01C2F3A62FFA99E200117803 /* PickViewiOS.app */;
-			productType = "com.apple.product-type.application";
-		};
 		01C2F3E62FFA9B5900117803 /* PickViewMac */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 01C2F3F62FFA9B5A00117803 /* Build configuration list for PBXNativeTarget "PickViewMac" */;
@@ -259,9 +195,6 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
-					01C2F3A52FFA99E200117803 = {
-						CreatedOnToolsVersion = 26.3;
-					};
 					01C2F3E62FFA9B5900117803 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -281,20 +214,12 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				01C2F3A52FFA99E200117803 /* PickViewiOS */,
 				01C2F3E62FFA9B5900117803 /* PickViewMac */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		01C2F3A42FFA99E200117803 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		01C2F3E52FFA9B5900117803 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -305,28 +230,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		5198F33B9869860C8458E034 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-PickViewiOS-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
 		7B1B5D60FD3BC3298D3CDAB9 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -352,13 +255,6 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		01C2F3A22FFA99E200117803 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		01C2F3E32FFA9B5900117803 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -369,54 +265,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		01C2F3BF2FFA99E300117803 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = DA575C8F73AC6C15B390F289 /* Pods-PickViewiOS.debug.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 26C6R5CQHU;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Demo/PickViewiOS/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickView;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		01C2F3C02FFA99E300117803 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 11E33015BC0CFCE12E0A63D9 /* Pods-PickViewiOS.release.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 26C6R5CQHU;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Demo/PickViewiOS/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kris.PickView;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		01C2F3C12FFA99E300117803 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -603,15 +451,6 @@
 			buildConfigurations = (
 				01C2F3C12FFA99E300117803 /* Debug */,
 				01C2F3C22FFA99E300117803 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		01C2F3BE2FFA99E300117803 /* Build configuration list for PBXNativeTarget "PickViewiOS" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				01C2F3BF2FFA99E300117803 /* Debug */,
-				01C2F3C02FFA99E300117803 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

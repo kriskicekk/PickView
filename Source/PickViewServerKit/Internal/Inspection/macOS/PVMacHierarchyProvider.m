@@ -9,6 +9,7 @@
 
 #import "PVAppInfo.h"
 #import "PVAppInfoCollector.h"
+#import "PVAutoLayoutConstraint.h"
 #import "Color+PVInspect.h"
 #import "PVAttribute.h"
 #import "PVAttributeModification.h"
@@ -151,6 +152,28 @@
 }
 
 - (BOOL)modifyCustomAttribute:(PVCustomAttrModification *)modification error:(NSError **)error {
+#if !TARGET_OS_IPHONE && TARGET_OS_OSX
+    if (!NSThread.isMainThread) {
+        __block BOOL succeeded = NO;
+        __block NSError *innerError = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            succeeded = [self modifyCustomAttributeOnMainThread:modification error:&innerError];
+        });
+        if (error) {
+            *error = innerError;
+        }
+        return succeeded;
+    }
+    return [self modifyCustomAttributeOnMainThread:modification error:error];
+#else
+    if (error) {
+        *error = [self unsupportedPlatformError];
+    }
+    return NO;
+#endif
+}
+
+- (BOOL)modifyCustomAttributeOnMainThread:(PVCustomAttrModification *)modification error:(NSError **)error {
     if (!modification.customSetterID.length) {
         if (error) *error = PVInspectErr_Inner;
         return NO;
@@ -264,13 +287,35 @@
 }
 
 - (NSData *)imageDataForImageViewWithOid:(unsigned long)oid error:(NSError **)error {
+#if !TARGET_OS_IPHONE && TARGET_OS_OSX
+    if (!NSThread.isMainThread) {
+        __block NSData *data = nil;
+        __block NSError *innerError = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            data = [self imageDataForImageViewWithOidOnMainThread:oid error:&innerError];
+        });
+        if (error) {
+            *error = innerError;
+        }
+        return data;
+    }
+    return [self imageDataForImageViewWithOidOnMainThread:oid error:error];
+#else
+    if (error) {
+        *error = [self unsupportedPlatformError];
+    }
+    return nil;
+#endif
+}
+
+- (NSData *)imageDataForImageViewWithOidOnMainThread:(unsigned long)oid error:(NSError **)error {
     id object = [self objectForOid:oid];
     if (![object isKindOfClass:NSImageView.class]) {
         if (error) *error = PVInspectErr_ObjNotFound;
         return nil;
     }
     NSImage *image = ((NSImageView *)object).image;
-    return image.TIFFRepresentation;
+    return [self PNGDataForImage:image];
 }
 
 - (NSArray<NSString *> *)selectorNamesForClassName:(NSString *)className hasArg:(BOOL)hasArg error:(NSError **)error {
@@ -337,6 +382,28 @@
 }
 
 - (NSNumber *)modifyGestureRecognizerWithOid:(unsigned long)oid enabled:(BOOL)enabled error:(NSError **)error {
+#if !TARGET_OS_IPHONE && TARGET_OS_OSX
+    if (!NSThread.isMainThread) {
+        __block NSNumber *result = nil;
+        __block NSError *innerError = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = [self modifyGestureRecognizerWithOidOnMainThread:oid enabled:enabled error:&innerError];
+        });
+        if (error) {
+            *error = innerError;
+        }
+        return result;
+    }
+    return [self modifyGestureRecognizerWithOidOnMainThread:oid enabled:enabled error:error];
+#else
+    if (error) {
+        *error = [self unsupportedPlatformError];
+    }
+    return nil;
+#endif
+}
+
+- (NSNumber *)modifyGestureRecognizerWithOidOnMainThread:(unsigned long)oid enabled:(BOOL)enabled error:(NSError **)error {
     id object = [self objectForOid:oid];
     if (![object isKindOfClass:NSGestureRecognizer.class]) {
         if (error) *error = PVInspectErr_ObjNotFound;
@@ -424,8 +491,8 @@
 
         if ([object isKindOfClass:NSWindow.class]) {
             NSWindow *window = object;
-            detail.frame = window.frame;
-            detail.bounds = CGRectMake(0, 0, window.frame.size.width, window.frame.size.height);
+            detail.frame = [self wireFrameForWindow:window];
+            detail.bounds = window.contentView.bounds;
             detail.hidden = !window.isVisible;
             detail.alpha = window.alphaValue;
             detail.attributesGroupList = [self attributeGroupsForWindow:window];
@@ -435,7 +502,7 @@
             }
         } else if ([object isKindOfClass:NSView.class]) {
             NSView *view = object;
-            detail.frame = view.frame;
+            detail.frame = [self wireFrameForView:view];
             detail.bounds = view.bounds;
             detail.hidden = view.isHidden;
             detail.alpha = view.alphaValue;
@@ -466,6 +533,12 @@
             detail.displayItemOid = task.oid;
 
             id object = [self objectForOid:task.oid];
+            if ([object isKindOfClass:CALayer.class]) {
+                NSView *hostView = [self hostViewForLayer:object];
+                if (hostView) {
+                    object = hostView;
+                }
+            }
             if (!object) {
                 detail.failureCode = -1;
                 [details addObject:detail];
@@ -475,8 +548,8 @@
             if ([object isKindOfClass:NSWindow.class]) {
                 NSWindow *window = object;
                 detail.displayItemID = [self identifierForObject:window prefix:@"mac-window"];
-                detail.frame = window.frame;
-                detail.bounds = CGRectMake(0, 0, window.frame.size.width, window.frame.size.height);
+                detail.frame = [self wireFrameForWindow:window];
+                detail.bounds = window.contentView.bounds;
                 detail.hidden = !window.isVisible;
                 detail.alpha = window.alphaValue;
                 detail.frameValue = task.needBasisVisualInfo ? [NSValue valueWithRect:detail.frame] : nil;
@@ -497,11 +570,11 @@
             } else if ([object isKindOfClass:NSView.class]) {
                 NSView *view = object;
                 detail.displayItemID = [self identifierForObject:view prefix:@"mac-view"];
-                detail.frame = view.frame;
+                detail.frame = [self wireFrameForView:view];
                 detail.bounds = view.bounds;
                 detail.hidden = view.isHidden;
                 detail.alpha = view.alphaValue;
-                detail.frameValue = task.needBasisVisualInfo ? [NSValue valueWithRect:view.frame] : nil;
+                detail.frameValue = task.needBasisVisualInfo ? [NSValue valueWithRect:detail.frame] : nil;
                 detail.boundsValue = task.needBasisVisualInfo ? [NSValue valueWithRect:view.bounds] : nil;
                 detail.hiddenValue = task.needBasisVisualInfo ? @(view.isHidden) : nil;
                 detail.alphaValue = task.needBasisVisualInfo ? @(view.alphaValue) : nil;
@@ -539,6 +612,18 @@
     }
 
     SEL selector = modification.setterSelector;
+    if ([receiver isKindOfClass:NSWindow.class] && selector == @selector(setFrame:)) {
+        [(NSWindow *)receiver setFrame:[modification.value rectValue] display:YES];
+        return [self detailForObject:receiver oid:modification.targetOid];
+    }
+    if ([receiver isKindOfClass:NSWindow.class] && selector == @selector(setHidden:)) {
+        [modification.value boolValue] ? [(NSWindow *)receiver orderOut:nil] : [(NSWindow *)receiver orderFront:nil];
+        return [self detailForObject:receiver oid:modification.targetOid];
+    }
+    if ([receiver isKindOfClass:NSView.class] && [self applyAppKitModification:modification toView:receiver]) {
+        [(NSView *)receiver layoutSubtreeIfNeeded];
+        return [self detailForObject:receiver oid:modification.targetOid];
+    }
     if ([receiver isKindOfClass:NSView.class] && selector == NSSelectorFromString(@"setAlpha:")) {
         selector = @selector(setAlphaValue:);
     }
@@ -576,6 +661,82 @@
     }
     [CATransaction flush];
     return [self detailForObject:receiver oid:modification.targetOid];
+}
+
+- (BOOL)applyAppKitModification:(PVAttributeModification *)modification toView:(NSView *)view {
+    SEL selector = modification.setterSelector;
+    if (selector == NSSelectorFromString(@"pv_setHorizontalHuggingPriority:")) {
+        [view setContentHuggingPriority:[modification.value floatValue] forOrientation:NSLayoutConstraintOrientationHorizontal];
+    } else if (selector == NSSelectorFromString(@"pv_setVerticalHuggingPriority:")) {
+        [view setContentHuggingPriority:[modification.value floatValue] forOrientation:NSLayoutConstraintOrientationVertical];
+    } else if (selector == NSSelectorFromString(@"pv_setHorizontalResistancePriority:")) {
+        [view setContentCompressionResistancePriority:[modification.value floatValue] forOrientation:NSLayoutConstraintOrientationHorizontal];
+    } else if (selector == NSSelectorFromString(@"pv_setVerticalResistancePriority:")) {
+        [view setContentCompressionResistancePriority:[modification.value floatValue] forOrientation:NSLayoutConstraintOrientationVertical];
+    } else if (selector == NSSelectorFromString(@"pv_setFontSize:") && [view isKindOfClass:NSControl.class]) {
+        NSControl *control = (NSControl *)view;
+        NSFont *font = control.font ?: [NSFont systemFontOfSize:NSFont.systemFontSize];
+        control.font = [NSFont fontWithDescriptor:font.fontDescriptor size:[modification.value doubleValue]];
+    } else if (selector == NSSelectorFromString(@"pv_setContentOffset:") && [view isKindOfClass:NSScrollView.class]) {
+        NSScrollView *scrollView = (NSScrollView *)view;
+        [scrollView.contentView scrollToPoint:[modification.value pointValue]];
+        [scrollView reflectScrolledClipView:scrollView.contentView];
+    } else {
+        return NO;
+    }
+    return YES;
+}
+
+- (NSArray<PVAutoLayoutConstraint *> *)constraintsForView:(NSView *)view {
+    NSMutableOrderedSet<NSLayoutConstraint *> *rawConstraints = [NSMutableOrderedSet orderedSetWithArray:view.constraints ?: @[]];
+    for (NSLayoutConstraint *constraint in view.superview.constraints ?: @[]) {
+        if (constraint.firstItem == view || constraint.secondItem == view) {
+            [rawConstraints addObject:constraint];
+        }
+    }
+    NSMutableSet<NSLayoutConstraint *> *effectiveConstraints = [NSMutableSet set];
+    [effectiveConstraints addObjectsFromArray:[view constraintsAffectingLayoutForOrientation:NSLayoutConstraintOrientationHorizontal]];
+    [effectiveConstraints addObjectsFromArray:[view constraintsAffectingLayoutForOrientation:NSLayoutConstraintOrientationVertical]];
+
+    NSMutableArray<PVAutoLayoutConstraint *> *results = [NSMutableArray arrayWithCapacity:rawConstraints.count];
+    for (NSLayoutConstraint *constraint in rawConstraints) {
+        PVAutoLayoutConstraint *result = [[PVAutoLayoutConstraint alloc] init];
+        result.effective = [effectiveConstraints containsObject:constraint];
+        result.active = constraint.active;
+        result.shouldBeArchived = constraint.shouldBeArchived;
+        result.firstItem = [self identityForObject:constraint.firstItem prefix:@"mac-constraint-item"];
+        result.firstItemType = [self constraintItemTypeForItem:constraint.firstItem view:view];
+        result.firstAttribute = constraint.firstAttribute;
+        result.relation = constraint.relation;
+        result.secondItem = [self identityForObject:constraint.secondItem prefix:@"mac-constraint-item"];
+        result.secondItemType = [self constraintItemTypeForItem:constraint.secondItem view:view];
+        result.secondAttribute = constraint.secondAttribute;
+        result.multiplier = constraint.multiplier;
+        result.constant = constraint.constant;
+        result.priority = constraint.priority;
+        result.identifier = constraint.identifier;
+        [results addObject:result];
+    }
+    return results.copy;
+}
+
+- (PVConstraintItemType)constraintItemTypeForItem:(id)item view:(NSView *)view {
+    if (!item) {
+        return PVConstraintItemTypeNil;
+    }
+    if (item == view) {
+        return PVConstraintItemTypeSelf;
+    }
+    if (item == view.superview) {
+        return PVConstraintItemTypeSuper;
+    }
+    if ([item isKindOfClass:NSLayoutGuide.class]) {
+        return PVConstraintItemTypeLayoutGuide;
+    }
+    if ([item isKindOfClass:NSView.class]) {
+        return PVConstraintItemTypeView;
+    }
+    return PVConstraintItemTypeUnknown;
 }
 
 - (BOOL)setInvocation:(NSInvocation *)invocation argumentWithModification:(PVAttributeModification *)modification error:(NSError **)error {
@@ -660,6 +821,18 @@
     if ([object isKindOfClass:NSView.class]) {
         return [self attributeGroupsForView:object];
     }
+    if ([object isKindOfClass:CALayer.class]) {
+        CALayer *layer = object;
+        return [self attributeGroupsForObject:layer
+                                        layer:layer
+                                        frame:layer.frame
+                                       bounds:layer.bounds
+                                       hidden:layer.isHidden
+                                        alpha:layer.opacity
+                                  interaction:YES
+                                          tag:0
+                                relationLines:@[]];
+    }
     if (error) {
         *error = PVInspectErr_ObjNotFound;
     }
@@ -729,6 +902,11 @@
         [invocation getReturnValue:&value];
         return [NSString stringWithFormat:@"%@", @(value)];
     }
+    if (strcmp(returnType, @encode(unsigned int)) == 0) {
+        unsigned int value = 0;
+        [invocation getReturnValue:&value];
+        return [NSString stringWithFormat:@"%@", @(value)];
+    }
     if (strcmp(returnType, @encode(long)) == 0) {
         long value = 0;
         [invocation getReturnValue:&value];
@@ -738,6 +916,36 @@
         unsigned long value = 0;
         [invocation getReturnValue:&value];
         return [NSString stringWithFormat:@"%@", @(value)];
+    }
+    if (strcmp(returnType, @encode(long long)) == 0) {
+        long long value = 0;
+        [invocation getReturnValue:&value];
+        return [NSString stringWithFormat:@"%@", @(value)];
+    }
+    if (strcmp(returnType, @encode(unsigned long long)) == 0) {
+        unsigned long long value = 0;
+        [invocation getReturnValue:&value];
+        return [NSString stringWithFormat:@"%@", @(value)];
+    }
+    if (strcmp(returnType, @encode(float)) == 0) {
+        float value = 0;
+        [invocation getReturnValue:&value];
+        return [NSString stringWithFormat:@"%@", @(value)];
+    }
+    if (strcmp(returnType, @encode(double)) == 0) {
+        double value = 0;
+        [invocation getReturnValue:&value];
+        return [NSString stringWithFormat:@"%@", @(value)];
+    }
+    if (strcmp(returnType, @encode(CGPoint)) == 0) {
+        CGPoint value = CGPointZero;
+        [invocation getReturnValue:&value];
+        return NSStringFromPoint(value);
+    }
+    if (strcmp(returnType, @encode(CGSize)) == 0) {
+        CGSize value = CGSizeZero;
+        [invocation getReturnValue:&value];
+        return NSStringFromSize(value);
     }
     if (strcmp(returnType, @encode(CGRect)) == 0) {
         CGRect value = CGRectZero;
@@ -798,6 +1006,35 @@
     return nil;
 }
 
+- (NSView *)hostViewForLayer:(CALayer *)layer {
+    if (!layer) {
+        return nil;
+    }
+    for (NSWindow *window in NSApplication.sharedApplication.windows.copy ?: @[]) {
+        NSView *view = [self hostViewForLayer:layer inView:window.contentView];
+        if (view) {
+            return view;
+        }
+    }
+    return nil;
+}
+
+- (NSView *)hostViewForLayer:(CALayer *)layer inView:(NSView *)view {
+    if (!view) {
+        return nil;
+    }
+    if (view.layer == layer) {
+        return view;
+    }
+    for (NSView *subview in view.subviews) {
+        NSView *matchedView = [self hostViewForLayer:layer inView:subview];
+        if (matchedView) {
+            return matchedView;
+        }
+    }
+    return nil;
+}
+
 - (NSArray<PVAttributesGroup *> *)attributeGroupsForWindow:(NSWindow *)window {
     if (!window) {
         return @[];
@@ -820,15 +1057,112 @@
         return @[];
     }
 
-    return [self attributeGroupsForObject:view
-                                    layer:view.layer
-                                    frame:view.frame
-                                   bounds:view.bounds
-                                   hidden:view.isHidden
-                                    alpha:view.alphaValue
-                              interaction:YES
-                                      tag:0
-                            relationLines:[self relationStringsForView:view]];
+    NSMutableArray<PVAttributesGroup *> *groups = [[self attributeGroupsForObject:view
+                                                                             layer:view.layer
+                                                                             frame:view.frame
+                                                                            bounds:view.bounds
+                                                                            hidden:view.isHidden
+                                                                             alpha:view.alphaValue
+                                                                       interaction:YES
+                                                                               tag:0
+                                                                     relationLines:[self relationStringsForView:view]] mutableCopy];
+    [groups addObjectsFromArray:[self appKitAttributeGroupsForView:view]];
+    return groups.copy;
+}
+
+- (NSArray<PVAttributesGroup *> *)appKitAttributeGroupsForView:(NSView *)view {
+    unsigned long oid = [self registerObject:view];
+    NSMutableArray<PVAttributesGroup *> *groups = [NSMutableArray array];
+
+    NSArray<PVAutoLayoutConstraint *> *constraints = [self constraintsForView:view];
+    NSMutableArray<PVAttributesSection *> *autoLayoutSections = [NSMutableArray array];
+    if (constraints.count) {
+        [autoLayoutSections addObject:[self sectionWithIdentifier:PVAttrSec_AutoLayout_Constraints attributes:@[
+            [self attributeWithIdentifier:PVAttr_AutoLayout_Constraints_Constraints type:PVAttrTypeCustomObj value:constraints]
+        ]]];
+    }
+    NSSize intrinsicSize = view.intrinsicContentSize;
+    if (!NSEqualSizes(intrinsicSize, NSMakeSize(NSViewNoIntrinsicMetric, NSViewNoIntrinsicMetric))) {
+        [autoLayoutSections addObject:[self sectionWithIdentifier:PVAttrSec_AutoLayout_IntrinsicSize attributes:@[
+            [self attributeWithIdentifier:PVAttr_AutoLayout_IntrinsicSize_Size type:PVAttrTypeCGSize value:[NSValue valueWithSize:intrinsicSize]]
+        ]]];
+    }
+    [autoLayoutSections addObject:[self sectionWithIdentifier:PVAttrSec_AutoLayout_Hugging attributes:@[
+        [self attributeWithIdentifier:PVAttr_AutoLayout_Hugging_Hor type:PVAttrTypeFloat value:@([view contentHuggingPriorityForOrientation:NSLayoutConstraintOrientationHorizontal]) targetOid:oid setter:@"pv_setHorizontalHuggingPriority:"],
+        [self attributeWithIdentifier:PVAttr_AutoLayout_Hugging_Ver type:PVAttrTypeFloat value:@([view contentHuggingPriorityForOrientation:NSLayoutConstraintOrientationVertical]) targetOid:oid setter:@"pv_setVerticalHuggingPriority:"]
+    ]]];
+    [autoLayoutSections addObject:[self sectionWithIdentifier:PVAttrSec_AutoLayout_Resistance attributes:@[
+        [self attributeWithIdentifier:PVAttr_AutoLayout_Resistance_Hor type:PVAttrTypeFloat value:@([view contentCompressionResistancePriorityForOrientation:NSLayoutConstraintOrientationHorizontal]) targetOid:oid setter:@"pv_setHorizontalResistancePriority:"],
+        [self attributeWithIdentifier:PVAttr_AutoLayout_Resistance_Ver type:PVAttrTypeFloat value:@([view contentCompressionResistancePriorityForOrientation:NSLayoutConstraintOrientationVertical]) targetOid:oid setter:@"pv_setVerticalResistancePriority:"]
+    ]]];
+    [groups addObject:[self groupWithIdentifier:PVAttrGroup_AutoLayout sections:autoLayoutSections.copy]];
+
+    if ([view isKindOfClass:NSControl.class]) {
+        NSControl *control = (NSControl *)view;
+        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIControl sections:@[
+            [self sectionWithIdentifier:PVAttrSec_UIControl_EnabledSelected attributes:@[
+                [self attributeWithIdentifier:PVAttr_UIControl_EnabledSelected_Enabled type:PVAttrTypeBOOL value:@(control.isEnabled) targetOid:oid setter:@"setEnabled:"]
+            ]]
+        ]]];
+    }
+
+    if ([view isKindOfClass:NSTextField.class]) {
+        NSTextField *textField = (NSTextField *)view;
+        NSMutableArray<PVAttributesSection *> *sections = [NSMutableArray arrayWithArray:@[
+            [self sectionWithIdentifier:PVAttrSec_UILabel_Text attributes:@[
+                [self attributeWithIdentifier:PVAttr_UILabel_Text_Text type:PVAttrTypeNSString value:textField.stringValue ?: @"" targetOid:oid setter:@"setStringValue:"]
+            ]],
+            [self sectionWithIdentifier:PVAttrSec_UILabel_Alignment attributes:@[
+                [self attributeWithIdentifier:PVAttr_UILabel_Alignment_Alignment type:PVAttrTypeEnumLong value:@(textField.alignment) targetOid:oid setter:@"setAlignment:"]
+            ]]
+        ]];
+        if (textField.font) {
+            [sections addObject:[self sectionWithIdentifier:PVAttrSec_UILabel_Font attributes:@[
+                [self attributeWithIdentifier:PVAttr_UILabel_Font_Name type:PVAttrTypeNSString value:textField.font.fontName ?: @""],
+                [self attributeWithIdentifier:PVAttr_UILabel_Font_Size type:PVAttrTypeDouble value:@(textField.font.pointSize) targetOid:oid setter:@"pv_setFontSize:"]
+            ]]];
+        }
+        if (textField.textColor) {
+            [sections addObject:[self sectionWithIdentifier:PVAttrSec_UILabel_TextColor attributes:@[
+                [self attributeWithIdentifier:PVAttr_UILabel_TextColor_Color type:PVAttrTypeUIColor value:textField.textColor.pv_inspect_rgbaComponents targetOid:oid setter:@"setTextColor:"]
+            ]]];
+        }
+        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UILabel sections:sections.copy]];
+    } else if ([view isKindOfClass:NSButton.class]) {
+        NSButton *button = (NSButton *)view;
+        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UILabel sections:@[
+            [self sectionWithIdentifier:PVAttrSec_UILabel_Text attributes:@[
+                [self attributeWithIdentifier:PVAttr_UILabel_Text_Text type:PVAttrTypeNSString value:button.title ?: @"" targetOid:oid setter:@"setTitle:"]
+            ]]
+        ]]];
+    }
+
+    if ([view isKindOfClass:NSImageView.class] && ((NSImageView *)view).image) {
+        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIImageView sections:@[
+            [self sectionWithIdentifier:PVAttrSec_UIImageView_Open attributes:@[
+                [self attributeWithIdentifier:PVAttr_UIImageView_Open_Open type:PVAttrTypeCustomObj value:@(oid)]
+            ]]
+        ]]];
+    }
+
+    if ([view isKindOfClass:NSScrollView.class]) {
+        NSScrollView *scrollView = (NSScrollView *)view;
+        NSPoint offset = scrollView.contentView.bounds.origin;
+        NSSize contentSize = scrollView.documentView ? scrollView.documentView.frame.size : NSZeroSize;
+        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIScrollView sections:@[
+            [self sectionWithIdentifier:PVAttrSec_UIScrollView_Offset attributes:@[
+                [self attributeWithIdentifier:PVAttr_UIScrollView_Offset_Offset type:PVAttrTypeCGPoint value:[NSValue valueWithPoint:offset] targetOid:oid setter:@"pv_setContentOffset:"]
+            ]],
+            [self sectionWithIdentifier:PVAttrSec_UIScrollView_ContentSize attributes:@[
+                [self attributeWithIdentifier:PVAttr_UIScrollView_ContentSize_Size type:PVAttrTypeCGSize value:[NSValue valueWithSize:contentSize]]
+            ]],
+            [self sectionWithIdentifier:PVAttrSec_UIScrollView_ShowsIndicator attributes:@[
+                [self attributeWithIdentifier:PVAttr_UIScrollView_ShowsIndicator_Hor type:PVAttrTypeBOOL value:@(scrollView.hasHorizontalScroller) targetOid:oid setter:@"setHasHorizontalScroller:"],
+                [self attributeWithIdentifier:PVAttr_UIScrollView_ShowsIndicator_Ver type:PVAttrTypeBOOL value:@(scrollView.hasVerticalScroller) targetOid:oid setter:@"setHasVerticalScroller:"]
+            ]]
+        ]]];
+    }
+    return groups.copy;
 }
 
 - (NSArray<PVAttributesGroup *> *)attributeGroupsForObject:(NSObject *)object
@@ -840,6 +1174,8 @@
                                                interaction:(BOOL)interaction
                                                        tag:(NSInteger)tag
                                              relationLines:(NSArray<NSString *> *)relationLines {
+    unsigned long objectOid = [self registerObject:object];
+    unsigned long layerOid = [self registerObject:layer];
     NSMutableArray<PVAttributesGroup *> *groups = [NSMutableArray array];
     [groups addObject:[self groupWithIdentifier:PVAttrGroup_Class sections:@[
         [self sectionWithIdentifier:PVAttrSec_Class_Class attributes:@[
@@ -855,39 +1191,81 @@
                                     value:relationLines ?: @[]]
         ]]
     ]]];
-    [groups addObject:[self groupWithIdentifier:PVAttrGroup_Layout sections:@[
+    NSMutableArray<PVAttributesSection *> *layoutSections = [NSMutableArray arrayWithArray:@[
         [self sectionWithIdentifier:PVAttrSec_Layout_Frame attributes:@[
-            [self attributeWithIdentifier:PVAttr_Layout_Frame_Frame type:PVAttrTypeCGRect value:[NSValue valueWithRect:frame]]
+            [self attributeWithIdentifier:PVAttr_Layout_Frame_Frame
+                                     type:PVAttrTypeCGRect
+                                    value:[NSValue valueWithRect:frame]
+                                targetOid:objectOid
+                                   setter:@"setFrame:"]
         ]],
         [self sectionWithIdentifier:PVAttrSec_Layout_Bounds attributes:@[
-            [self attributeWithIdentifier:PVAttr_Layout_Bounds_Bounds type:PVAttrTypeCGRect value:[NSValue valueWithRect:bounds]]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_Layout_Position attributes:@[
-            [self attributeWithIdentifier:PVAttr_Layout_Position_Position type:PVAttrTypeCGPoint value:[NSValue valueWithPoint:(layer ? layer.position : CGPointZero)]]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_Layout_AnchorPoint attributes:@[
-            [self attributeWithIdentifier:PVAttr_Layout_AnchorPoint_AnchorPoint type:PVAttrTypeCGPoint value:[NSValue valueWithPoint:(layer ? layer.anchorPoint : CGPointZero)]]
+            [self attributeWithIdentifier:PVAttr_Layout_Bounds_Bounds
+                                     type:PVAttrTypeCGRect
+                                    value:[NSValue valueWithRect:bounds]
+                                targetOid:objectOid
+                                   setter:@"setBounds:"]
         ]]
-    ]]];
-    [groups addObject:[self groupWithIdentifier:PVAttrGroup_ViewLayer sections:@[
+    ]];
+    if ([object isKindOfClass:NSWindow.class]) {
+        [layoutSections removeLastObject];
+    }
+    if (layer) {
+        [layoutSections addObject:[self sectionWithIdentifier:PVAttrSec_Layout_Position attributes:@[
+            [self attributeWithIdentifier:PVAttr_Layout_Position_Position
+                                     type:PVAttrTypeCGPoint
+                                    value:[NSValue valueWithPoint:layer.position]
+                                targetOid:layerOid
+                                   setter:@"setPosition:"]
+        ]]];
+        [layoutSections addObject:[self sectionWithIdentifier:PVAttrSec_Layout_AnchorPoint attributes:@[
+            [self attributeWithIdentifier:PVAttr_Layout_AnchorPoint_AnchorPoint
+                                     type:PVAttrTypeCGPoint
+                                    value:[NSValue valueWithPoint:layer.anchorPoint]
+                                targetOid:layerOid
+                                   setter:@"setAnchorPoint:"]
+        ]]];
+    }
+    [groups addObject:[self groupWithIdentifier:PVAttrGroup_Layout sections:layoutSections.copy]];
+
+    NSMutableArray<PVAttributesSection *> *viewLayerSections = [NSMutableArray arrayWithObject:
         [self sectionWithIdentifier:PVAttrSec_ViewLayer_Visibility attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Hidden type:PVAttrTypeBOOL value:@(hidden)],
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Opacity type:PVAttrTypeDouble value:@(alpha)]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_ViewLayer_InterationAndMasks attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_InterationAndMasks_Interaction type:PVAttrTypeBOOL value:@(interaction)],
-            [self attributeWithIdentifier:PVAttr_ViewLayer_InterationAndMasks_MasksToBounds type:PVAttrTypeBOOL value:@(layer.masksToBounds)]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_ViewLayer_Corner attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Corner_Radius type:PVAttrTypeDouble value:@(layer.cornerRadius)]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_ViewLayer_Border attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Border_Width type:PVAttrTypeDouble value:@(layer.borderWidth)]
-        ]],
-        [self sectionWithIdentifier:PVAttrSec_ViewLayer_Tag attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Tag_Tag type:PVAttrTypeLong value:@(tag)]
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Hidden
+                                     type:PVAttrTypeBOOL
+                                    value:@(hidden)
+                                targetOid:objectOid
+                                   setter:@"setHidden:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Opacity
+                                     type:PVAttrTypeDouble
+                                    value:@(alpha)
+                                targetOid:objectOid
+                                   setter:@"setAlphaValue:"]
         ]]
-    ]]];
+    ];
+    if (layer) {
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_InterationAndMasks attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_InterationAndMasks_MasksToBounds
+                                     type:PVAttrTypeBOOL
+                                    value:@(layer.masksToBounds)
+                                targetOid:layerOid
+                                   setter:@"setMasksToBounds:"]
+        ]]];
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Corner attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Corner_Radius
+                                     type:PVAttrTypeDouble
+                                    value:@(layer.cornerRadius)
+                                targetOid:layerOid
+                                   setter:@"setCornerRadius:"]
+        ]]];
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Border attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Border_Width
+                                     type:PVAttrTypeDouble
+                                    value:@(layer.borderWidth)
+                                targetOid:layerOid
+                                   setter:@"setBorderWidth:"]
+        ]]];
+    }
+    [groups addObject:[self groupWithIdentifier:PVAttrGroup_ViewLayer sections:viewLayerSections.copy]];
 
     return groups.copy;
 }
@@ -911,6 +1289,17 @@
     attribute.identifier = identifier;
     attribute.attrType = type;
     attribute.value = value;
+    return attribute;
+}
+
+- (PVAttribute *)attributeWithIdentifier:(PVAttrIdentifier)identifier
+                                    type:(PVAttrType)type
+                                   value:(id)value
+                               targetOid:(unsigned long)targetOid
+                                  setter:(NSString *)setter {
+    PVAttribute *attribute = [self attributeWithIdentifier:identifier type:type value:value];
+    attribute.modificationTargetOid = targetOid;
+    attribute.modificationSetterName = setter;
     return attribute;
 }
 
@@ -977,14 +1366,34 @@
     return nil;
 }
 
+- (CGRect)wireFrameForWindow:(NSWindow *)window {
+    NSSize size = window.contentView.bounds.size;
+    return CGRectMake(0, 0, size.width, size.height);
+}
+
+- (CGRect)wireFrameForView:(NSView *)view {
+    if (view.window.contentView == view) {
+        return CGRectMake(0, 0, view.bounds.size.width, view.bounds.size.height);
+    }
+    NSView *superview = view.superview;
+    if (!superview) {
+        return CGRectMake(0, 0, view.bounds.size.width, view.bounds.size.height);
+    }
+    CGRect frame = view.frame;
+    CGRect parentBounds = superview.bounds;
+    frame.origin.x -= CGRectGetMinX(parentBounds);
+    if (superview.isFlipped) {
+        frame.origin.y -= CGRectGetMinY(parentBounds);
+    } else {
+        frame.origin.y = CGRectGetMaxY(parentBounds) - CGRectGetMaxY(frame);
+    }
+    return frame;
+}
+
 - (NSData *)imageDataForView:(NSView *)view includeSubviews:(BOOL)includeSubviews lowQuality:(BOOL)lowQuality {
     if (!view || view.isHidden || CGRectIsEmpty(view.bounds) || ![self canCreateImageContextWithSize:view.bounds.size]) {
         return nil;
     }
-    if (!includeSubviews && !view.subviews.count) {
-        return nil;
-    }
-
     NSArray<NSView *> *hiddenSubviews = includeSubviews ? @[] : [self hideVisibleSubviewsOfView:view];
     NSBitmapImageRep *rep = [view bitmapImageRepForCachingDisplayInRect:view.bounds];
     if (!rep) {
@@ -994,6 +1403,51 @@
 
     [view cacheDisplayInRect:view.bounds toBitmapImageRep:rep];
     [self restoreHiddenSubviews:hiddenSubviews];
+    return [self PNGDataForBitmapImageRep:rep lowQuality:lowQuality];
+}
+
+- (NSData *)PNGDataForBitmapImageRep:(NSBitmapImageRep *)rep lowQuality:(BOOL)lowQuality {
+    if (!lowQuality) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+    CGImageRef sourceImage = rep.CGImage;
+    if (!sourceImage) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+    size_t sourceWidth = CGImageGetWidth(sourceImage);
+    size_t sourceHeight = CGImageGetHeight(sourceImage);
+    if (sourceWidth < 2 || sourceHeight < 2) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+
+    CGFloat scale = MIN(0.5, 1200.0 / MAX(sourceWidth, sourceHeight));
+    size_t targetWidth = MAX((size_t)1, (size_t)floor(sourceWidth * scale));
+    size_t targetHeight = MAX((size_t)1, (size_t)floor(sourceHeight * scale));
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(NULL, targetWidth, targetHeight, 8, 0, colorSpace,
+                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(colorSpace);
+    if (!context) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+    CGContextSetInterpolationQuality(context, kCGInterpolationMedium);
+    CGContextDrawImage(context, CGRectMake(0, 0, targetWidth, targetHeight), sourceImage);
+    CGImageRef scaledImage = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    NSBitmapImageRep *scaledRep = [[NSBitmapImageRep alloc] initWithCGImage:scaledImage];
+    CGImageRelease(scaledImage);
+    return [scaledRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+}
+
+- (NSData *)PNGDataForImage:(NSImage *)image {
+    if (!image) {
+        return nil;
+    }
+    CGImageRef imageRef = [image CGImageForProposedRect:NULL context:nil hints:nil];
+    if (!imageRef) {
+        return nil;
+    }
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:imageRef];
     return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
 }
 
@@ -1023,8 +1477,8 @@
     item.objectID = [self identifierForObject:window prefix:@"mac-window"];
     item.displayName = window.title.length ? window.title : NSStringFromClass(window.class);
     item.viewClassName = NSStringFromClass(window.class);
-    item.frame = window.frame;
-    item.bounds = CGRectMake(0, 0, window.frame.size.width, window.frame.size.height);
+    item.frame = [self wireFrameForWindow:window];
+    item.bounds = window.contentView.bounds;
     item.hidden = !window.isVisible;
     item.alpha = window.alphaValue;
     item.viewObject = [self identityForObject:window prefix:@"mac-window"];
@@ -1048,7 +1502,7 @@
     if (view.layer) {
         item.layerObject = [self identityForObject:view.layer prefix:@"mac-layer"];
     }
-    item.frame = view.frame;
+    item.frame = [self wireFrameForView:view];
     item.bounds = view.bounds;
     item.hidden = view.isHidden;
     item.alpha = view.alphaValue;

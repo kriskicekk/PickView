@@ -33,6 +33,12 @@
 /// 对于有 retainedSetter 的 Custom Attr，它的 setter 会以 customSetterID 作为 key 被保存到 LKS_CustomAttrSetterManager 里，后续可以通过这个 uniqueID 重新把 setter 从 LKS_CustomAttrSetterManager 里取出来并调用
 @property(nonatomic, copy) NSString *customSetterID;
 
+/// 服务端已解析出的内建属性修改目标。为 0 时客户端继续使用旧版 Blueprint 路由。
+@property(nonatomic, assign) unsigned long modificationTargetOid;
+
+/// 与 modificationTargetOid 配套的单参数 setter 名称。
+@property(nonatomic, copy) NSString *modificationSetterName;
+
 #pragma mark - 以下属性不会参与 encode/decode
 
 /// 标识该 PVAttribute 对象隶属于哪一个 PVDisplayItem
@@ -41,4 +47,3 @@
 - (BOOL)isUserCustom;
 
 @end
-

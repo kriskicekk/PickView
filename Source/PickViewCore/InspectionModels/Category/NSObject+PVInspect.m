@@ -6,6 +6,7 @@
 //
 
 #import "NSObject+PVInspect.h"
+#import "Image+PVInspect.h"
 #import <objc/runtime.h>
 #import "TargetConditionals.h"
 #import "PVWeakContainer.h"
@@ -114,7 +115,7 @@ static char kAssociatedObjectKey_PickViewAllBindObjects;
 - (void)pv_inspect_bindPoint:(CGPoint)pointValue forKey:(NSString *)key {
 #if TARGET_OS_IPHONE
     [self pv_inspect_bindObject:[NSValue valueWithCGPoint:pointValue] forKey:key];
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
     NSPoint nsPoint = NSMakePoint(pointValue.x, pointValue.y);
     [self pv_inspect_bindObject:[NSValue valueWithPoint:nsPoint] forKey:key];
 #endif
@@ -125,7 +126,7 @@ static char kAssociatedObjectKey_PickViewAllBindObjects;
     if ([object isKindOfClass:[NSValue class]]) {
 #if TARGET_OS_IPHONE
         CGPoint pointValue = [(NSValue *)object CGPointValue];
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
         NSPoint nsPointValue = [(NSValue *)object pointValue];
         CGPoint pointValue = CGPointMake(nsPointValue.x, nsPointValue.y);
 #endif
@@ -162,7 +163,7 @@ static char kAssociatedObjectKey_PickViewAllBindObjects;
                 b = 0;
                 a = 0;
             }
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
             NSColor *color = [((NSColor *)self) colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
             [color getRed:&r green:&g blue:&b alpha:&a];
 #endif
@@ -178,16 +179,16 @@ static char kAssociatedObjectKey_PickViewAllBindObjects;
 #if TARGET_OS_IPHONE
         if ([self isKindOfClass:[UIImage class]]) {
             UIImage *image = (UIImage *)self;
-            return UIImagePNGRepresentation(image);
+            return [image pv_inspect_data];
             
         } else {
             NSAssert(NO, @"");
             return nil;
         }
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
         if ([self isKindOfClass:[NSImage class]]) {
             NSImage *image = (NSImage *)self;
-            return [image TIFFRepresentation];
+            return [image pv_inspect_data];
             
         } else {
             NSAssert(NO, @"");
@@ -231,4 +232,3 @@ static char kAssociatedObjectKey_PickViewAllBindObjects;
 }
 
 @end
-

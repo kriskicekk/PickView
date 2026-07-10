@@ -11,8 +11,8 @@
 #import "PVEndpointProtocol.h"
 #import "PVPeerIdentity.h"
 
-static NSSize const PVLaunchDevicePreviewSize = {142.0, 260.0};
-static NSEdgeInsets const PVLaunchDeviceInsets = {12.0, 25.0, 12.0, 25.0};
+static NSSize PVLaunchDevicePreviewSize = {142.0, 260.0};
+static NSEdgeInsets PVLaunchDeviceInsets = {12.0, 25.0, 12.0, 25.0};
 static CGFloat const PVLaunchDeviceIconTop = 10.0;
 static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
 
@@ -54,6 +54,7 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
 
         _titleLabel = [NSTextField labelWithString:@""];
         _titleLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightRegular];
+        _titleLabel.alignment = NSTextAlignmentCenter;
         _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self addSubview:_titleLabel];
 
@@ -82,6 +83,12 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
     NSString *deviceName = identity.deviceName.length ? identity.deviceName : (session.endpoint.displayName ?: @"Unknown Device");
     NSString *appName = identity.appName.length ? identity.appName : @"Unknown App";
     NSString *bundleID = identity.bundleID.length ? identity.bundleID : session.identifier ?: @"";
+
+    if (identity.isMacOSPlatform) {
+        PVLaunchDevicePreviewSize = CGSizeMake(400, 260);
+    } else {
+        PVLaunchDevicePreviewSize = CGSizeMake(142, 260);
+    }
 
     self.previewImageView.image = previewImage ?: [self placeholderImageWithTitle:@"Preview"];
     self.iconImageView.image = [self iconImageForSession:session];
@@ -187,21 +194,32 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
 }
 
 - (NSImage *)iconImageForSession:(PVClientSession *)session {
-    if (session.endpoint.transportType == PVEndpointTransportTypeLocalLoopback) {
-        return [NSImage imageNamed:@"icon_simulator_big"];
+    switch (session.peerIdentity.platform) {
+        case PVPeerPlatformIOSSimulator:
+            return [NSImage imageNamed:@"icon_simulator_big"];
+        case PVPeerPlatformMacOS:
+            return [NSImage imageWithSystemSymbolName:@"desktopcomputer" accessibilityDescription:@"Mac"];
+        case PVPeerPlatformIOSDevice:
+            return [NSImage imageNamed:@"icon_iphone_big"] ?: [NSImage imageNamed:@"icon_ipad_big"];
+        case PVPeerPlatformUnknown:
+            if (session.endpoint.transportType == PVEndpointTransportTypeLocalLoopback) {
+                return [NSImage imageNamed:@"icon_simulator_big"];
+            }
+            return [NSImage imageNamed:@"icon_iphone_big"] ?: [NSImage imageNamed:@"icon_ipad_big"];
     }
     return [NSImage imageNamed:@"icon_iphone_big"] ?: [NSImage imageNamed:@"icon_ipad_big"];
 }
 
 - (NSString *)subtitleTextWithSession:(PVClientSession *)session {
     NSString *systemVersion = session.peerIdentity.systemVersion;
+    NSString *platformName = session.peerIdentity.isMacOSPlatform ? @"macOS" : @"iOS";
     if (!systemVersion.length) {
-        return @"iOS";
+        return platformName;
     }
-    if ([systemVersion localizedCaseInsensitiveContainsString:@"iOS"]) {
+    if ([systemVersion localizedCaseInsensitiveContainsString:platformName]) {
         return systemVersion;
     }
-    return [NSString stringWithFormat:@"iOS %@", systemVersion];
+    return [NSString stringWithFormat:@"%@ %@", platformName, systemVersion];
 }
 
 - (NSImage *)placeholderImageWithTitle:(NSString *)title {

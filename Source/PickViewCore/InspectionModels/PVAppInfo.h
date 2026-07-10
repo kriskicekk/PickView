@@ -8,9 +8,10 @@
 #import "PVInspectionDefines.h"
 
 typedef NS_ENUM(NSInteger, PVAppInfoDevice) {
-    PVAppInfoDeviceSimulator,   // 模拟器
-    PVAppInfoDeviceIPad,    // iPad 真机
-    PVAppInfoDeviceOthers   // 应该视为 iPhone 真机
+    PVAppInfoDeviceSimulator,
+    PVAppInfoDeviceIPad,
+    PVAppInfoDeviceOthers,
+    PVAppInfoDeviceMac
 };
 
 @interface PVAppInfo : NSObject <NSSecureCoding, NSCopying>

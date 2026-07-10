@@ -17,7 +17,7 @@
 
 @end
 
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
 
 @interface NSColor (PickView)
 
@@ -28,4 +28,3 @@
 @end
 
 #endif
-

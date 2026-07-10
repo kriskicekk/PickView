@@ -1,13 +1,13 @@
 //
-//  PVSimulatorEndpoint.m
+//  PVLoopbackEndpoint.m
 //  PickView
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#import "PVSimulatorEndpoint.h"
+#import "PVLoopbackEndpoint.h"
 
-@implementation PVSimulatorEndpoint
+@implementation PVLoopbackEndpoint
 
 - (instancetype)initWithHost:(NSString *)host port:(int)port {
     self = [super init];
@@ -19,11 +19,11 @@
 }
 
 - (NSString *)identifier {
-    return [NSString stringWithFormat:@"simulator:%@:%d", self.host, self.port];
+    return [NSString stringWithFormat:@"loopback:%@:%d", self.host, self.port];
 }
 
 - (NSString *)displayName {
-    return [NSString stringWithFormat:@"Simulator %@:%d", self.host, self.port];
+    return [NSString stringWithFormat:@"Local App %@:%d", self.host, self.port];
 }
 
 - (PVEndpointTransportType)transportType {

@@ -12,7 +12,7 @@
 + (instancetype)defaultConfiguration {
     PickViewClientConfiguration *configuration = [[PickViewClientConfiguration alloc] init];
     configuration.enableUSBDiscovery = YES;
-    configuration.enableSimulatorDiscovery = YES;
+    configuration.enableLoopbackDiscovery = YES;
     configuration.enableLANDiscovery = YES;
     configuration.preferUSBTransport = YES;
     configuration.scanInterval = 2.0;
@@ -20,4 +20,3 @@
 }
 
 @end
-

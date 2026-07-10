@@ -17,12 +17,17 @@
 
 @end
 
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
 
 @implementation NSImage (PVInspect)
 
 - (NSData *)pv_inspect_data {
-    return [self TIFFRepresentation];
+    CGImageRef imageRef = [self CGImageForProposedRect:NULL context:nil hints:nil];
+    if (!imageRef) {
+        return nil;
+    }
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:imageRef];
+    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
 }
 
 @end

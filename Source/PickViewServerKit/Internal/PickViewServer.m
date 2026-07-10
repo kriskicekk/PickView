@@ -15,12 +15,10 @@
 #import "PVHierarchyDetailsHandler.h"
 #import "PVHierarchyHandler.h"
 #import "PVHierarchyProvider.h"
-#import "PVIOSHierarchyProvider.h"
 #import "PVLANListener.h"
 #import "PVListenerProtocol.h"
-#import "PVLocalLoopbackListener.h"
+#import "PVLoopbackListener.h"
 #import "PVMessageHandler.h"
-#import "PVMacHierarchyProvider.h"
 #import "PVPeerIdentity.h"
 #import "PVKitVersion.h"
 #import "PVRequestHandlerProtocol.h"
@@ -28,6 +26,14 @@
 #import "PVWindowListHandler.h"
 
 #import <TargetConditionals.h>
+
+#if TARGET_OS_IPHONE
+#import "PVIOSHierarchyProvider.h"
+#import <UIKit/UIKit.h>
+#else
+#import "PVMacHierarchyProvider.h"
+#import <AppKit/AppKit.h>
+#endif
 
 static NSUInteger const PVLANBonjourServiceNameMaxBytes = 63;
 
@@ -76,7 +82,7 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 
 @interface PickViewServer () <PVListenerDelegate, PVServerSessionDelegate>
 @property (nonatomic, strong) PickViewServerConfiguration *configuration;
-@property (nonatomic, strong, nullable) PVLocalLoopbackListener *localLoopbackListener;
+@property (nonatomic, strong, nullable) PVLoopbackListener *loopbackListener;
 @property (nonatomic, strong, nullable) PVLANListener *lanListener;
 @property (nonatomic, strong) NSMutableArray<PVServerSession *> *sessions;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVServerSession *> *sessionsDict;
@@ -86,6 +92,10 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 @end
 
 @implementation PickViewServer
+
++ (void)load {
+    [PickViewServer sharedServer];
+}
 
 + (PickViewServer *)sharedServer {
     static PickViewServer *server = nil;
@@ -104,8 +114,31 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
         _customHandlers = [NSMutableArray array];
         _sessionsDict = [NSMutableDictionary dictionary];
         _hierarchyProvider = [self makeDefaultHierarchyProvider];
+#if TARGET_OS_IPHONE
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationDidBecomeReady:)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+#else
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationDidBecomeReady:)
+                                                     name:NSApplicationDidFinishLaunchingNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationDidBecomeReady:)
+                                                     name:NSApplicationDidBecomeActiveNotification
+                                                   object:nil];
+#endif
     }
     return self;
+}
+
+- (void)applicationDidBecomeReady:(NSNotification *)notification {
+    (void)notification;
+    if (self.isRunning || self.loopbackListener || self.lanListener) {
+        return;
+    }
+    [self start];
 }
 
 - (void)start {
@@ -113,24 +146,26 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 }
 
 - (void)startWithConfiguration:(PickViewServerConfiguration *)configuration {
-    if (self.isRunning || self.localLoopbackListener || self.lanListener) {
+    if (self.isRunning || self.loopbackListener || self.lanListener) {
         [self stop];
     }
 
     self.configuration = configuration ?: [PickViewServerConfiguration defaultConfiguration];
 
     if (self.configuration.enableLocalLoopback) {
-        self.localLoopbackListener = [[PVLocalLoopbackListener alloc] initWithPortRangeStart:self.configuration.portStart end:self.configuration.portEnd];
-        self.localLoopbackListener.delegate = self;
-        [self startListener:self.localLoopbackListener];
+        self.loopbackListener = [[PVLoopbackListener alloc] initWithPortRangeStart:self.configuration.portStart end:self.configuration.portEnd];
+        self.loopbackListener.delegate = self;
+        [self startListener:self.loopbackListener];
     }
-
+    
+#if TARGET_OS_IPHONE
     if ([self shouldStartLANTransport]) {
         NSString *lanServiceName = PVLANServiceNameWithPeerID(self.configuration.lanServiceName);
         self.lanListener = [[PVLANListener alloc] initWithServiceName:lanServiceName];
         self.lanListener.delegate = self;
         [self startListener:self.lanListener];
     }
+#endif
 }
 
 - (BOOL)shouldStartLANTransport {
@@ -148,8 +183,8 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
     [self.sessions removeAllObjects];
     [self.sessionsDict removeAllObjects];
 
-    [self.localLoopbackListener stop];
-    self.localLoopbackListener = nil;
+    [self.loopbackListener stop];
+    self.loopbackListener = nil;
 
     [self.lanListener stop];
     self.lanListener = nil;
@@ -212,8 +247,8 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 }
 
 - (int)listeningPortForListener:(id<PVListenerProtocol>)listener {
-    if ([listener isKindOfClass:PVLocalLoopbackListener.class]) {
-        return ((PVLocalLoopbackListener *)listener).listeningPort;
+    if ([listener isKindOfClass:PVLoopbackListener.class]) {
+        return ((PVLoopbackListener *)listener).listeningPort;
     }
     if ([listener isKindOfClass:PVLANListener.class]) {
         return ((PVLANListener *)listener).listeningPort;

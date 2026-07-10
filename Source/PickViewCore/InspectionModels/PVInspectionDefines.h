@@ -8,8 +8,8 @@
 #import "TargetConditionals.h"
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
-#elif TARGET_OS_MAC
-#import <Appkit/Appkit.h>
+#elif TARGET_OS_OSX
+#import <AppKit/AppKit.h>
 #endif
 
 #include <stdint.h>
@@ -37,8 +37,8 @@ static const int PVInspectUSBDeviceIPv4PortNumberStart = 47175;
 static const int PVInspectUSBDeviceIPv4PortNumberEnd = 47179;
 
 /// PickViewServer 在模拟器中会依次尝试监听 47164 ~ 47169 这几个端口
-static const int PVInspectSimulatorIPv4PortNumberStart = 47164;
-static const int PVInspectSimulatorIPv4PortNumberEnd = 47169;
+static const int PVInspectLoopbackIPv4PortNumberStart = 47164;
+static const int PVInspectLoopbackIPv4PortNumberEnd = 47169;
 
 enum {
     /// 确认两端是否可以响应通讯
@@ -125,15 +125,15 @@ enum {
     PVInspectErrCode_UnsupportedFileType = -700,
 };
 
-#define PVInspectErr_ObjNotFound [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_ObjectNotFound userInfo:@{NSLocalizedDescriptionKey:NSLocalizedString(@"Failed to get target object in iOS app", nil), NSLocalizedRecoverySuggestionErrorKey:NSLocalizedString(@"Perhaps the related object was deallocated. You can reload PickView to get newest data.", nil)}]
+#define PVInspectErr_ObjNotFound [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_ObjectNotFound userInfo:@{NSLocalizedDescriptionKey:NSLocalizedString(@"Failed to get target object in the inspected app", nil), NSLocalizedRecoverySuggestionErrorKey:NSLocalizedString(@"Perhaps the related object was deallocated. You can reload PickView to get newest data.", nil)}]
 
-#define PVInspectErr_NoConnect [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_NoConnect userInfo:@{NSLocalizedDescriptionKey:NSLocalizedString(@"The operation failed due to disconnection with the iOS app.", nil)}]
+#define PVInspectErr_NoConnect [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_NoConnect userInfo:@{NSLocalizedDescriptionKey:NSLocalizedString(@"The operation failed because the inspected app disconnected.", nil)}]
 
 #define PVInspectErr_Inner [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_Inner userInfo:@{NSLocalizedDescriptionKey:NSLocalizedString(@"The operation failed due to an inner error.", nil)}]
 
 #define PVInspectErrorMake(errorTitle, errorDetail) [NSError errorWithDomain:PVInspectErrorDomain code:PVInspectErrCode_Default userInfo:@{NSLocalizedDescriptionKey:errorTitle, NSLocalizedRecoverySuggestionErrorKey:errorDetail}]
 
-#define PVInspectErrorText_Timeout NSLocalizedString(@"Perhaps your iOS app is paused with breakpoint in Xcode, blocked by other tasks in main thread, or moved to background state.", nil)
+#define PVInspectErrorText_Timeout NSLocalizedString(@"Perhaps the inspected app is paused at a breakpoint, blocked on its main thread, or in the background.", nil)
 
 #pragma mark - Colors
 
@@ -141,7 +141,7 @@ enum {
 #define PVColor UIColor
 #define PVInsets UIEdgeInsets
 #define PVImage UIImage
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
 #define PVColor NSColor
 #define PVInsets NSEdgeInsets
 #define PVImage NSImage
@@ -165,4 +165,3 @@ typedef NS_OPTIONS(NSUInteger, PVPreviewBitMask) {
     PVPreviewBitMask_HasLight = 1 << 3,
     PVPreviewBitMask_NoLight = 1 << 4
 };
-

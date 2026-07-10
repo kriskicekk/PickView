@@ -162,11 +162,14 @@
             self.iconImageView.image = NSImageMake(@"icon_simulator_big");
         } else if (app.appInfo.deviceType == PVAppInfoDeviceIPad) {
             self.iconImageView.image = NSImageMake(@"icon_ipad_big");
+        } else if (app.appInfo.deviceType == PVAppInfoDeviceMac) {
+            self.iconImageView.image = [NSImage imageWithSystemSymbolName:@"desktopcomputer" accessibilityDescription:@"Mac"];
         } else {
             self.iconImageView.image = NSImageMake(@"icon_iphone_big");
         }
         self.titleLabel.stringValue = app.appInfo.deviceDescription;
-        self.subtitleLabel.stringValue = [NSString stringWithFormat:@"iOS %@", app.appInfo.osDescription];
+        NSString *platformName = app.appInfo.deviceType == PVAppInfoDeviceMac ? @"macOS" : @"iOS";
+        self.subtitleLabel.stringValue = [NSString stringWithFormat:@"%@ %@", platformName, app.appInfo.osDescription];
     }
     
     [self updateLayer];

@@ -93,17 +93,25 @@
 
 + (UIWindow *)keyWindow {
     if (@available(iOS 13.0, *)) {
+        UIWindow *fallbackWindow = nil;
         for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
             if (![scene isKindOfClass:UIWindowScene.class]) {
                 continue;
             }
-            for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
+            if (windowScene.activationState == UISceneActivationStateUnattached) {
+                continue;
+            }
+            for (UIWindow *window in windowScene.windows) {
                 if (window.isKeyWindow) {
                     return window;
                 }
+                if (!fallbackWindow && !window.isHidden && window.alpha > 0 && !CGRectIsEmpty(window.bounds)) {
+                    fallbackWindow = window;
+                }
             }
         }
-        return nil;
+        return fallbackWindow;
     }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -145,7 +153,7 @@
     info.deviceDescription = NSHost.currentHost.localizedName ?: @"Mac";
     info.osDescription = NSProcessInfo.processInfo.operatingSystemVersionString ?: @"";
     info.osMainVersion = (NSUInteger)NSProcessInfo.processInfo.operatingSystemVersion.majorVersion;
-    info.deviceType = PVAppInfoDeviceOthers;
+    info.deviceType = PVAppInfoDeviceMac;
     NSScreen *screen = NSScreen.mainScreen;
     info.screenWidth = screen.frame.size.width;
     info.screenHeight = screen.frame.size.height;

@@ -6,6 +6,7 @@
 //
 
 #import "PVAppInfo.h"
+#import "Image+PVInspect.h"
 
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
@@ -26,6 +27,7 @@ static NSString * const CodingKey_DeviceType = @"8";
 - (id)copyWithZone:(NSZone *)zone {
     PVAppInfo *newAppInfo = [[PVAppInfo allocWithZone:zone] init];
     newAppInfo.appIcon = self.appIcon;
+    newAppInfo.screenshot = self.screenshot;
     newAppInfo.appName = self.appName;
     newAppInfo.deviceDescription = self.deviceDescription;
     newAppInfo.osDescription = self.osDescription;
@@ -35,6 +37,14 @@ static NSString * const CodingKey_DeviceType = @"8";
     newAppInfo.screenHeight = self.screenHeight;
     newAppInfo.screenScale = self.screenScale;
     newAppInfo.appInfoIdentifier = self.appInfoIdentifier;
+    newAppInfo.shouldUseCache = self.shouldUseCache;
+    newAppInfo.serverVersion = self.serverVersion;
+    newAppInfo.serverReadableVersion = self.serverReadableVersion;
+    newAppInfo.swiftEnabledInPickViewServer = self.swiftEnabledInPickViewServer;
+    newAppInfo.appBundleIdentifier = self.appBundleIdentifier;
+#if !TARGET_OS_IPHONE
+    newAppInfo.cachedTimestamp = self.cachedTimestamp;
+#endif
     return newAppInfo;
 }
 
@@ -70,19 +80,8 @@ static NSString * const CodingKey_DeviceType = @"8";
     [aCoder encodeObject:self.serverReadableVersion forKey:@"serverReadableVersion"];
     [aCoder encodeInt:self.swiftEnabledInPickViewServer forKey:@"swiftEnabledInPickViewServer"];
     
-#if TARGET_OS_IPHONE
-    NSData *screenshotData = UIImagePNGRepresentation(self.screenshot);
-    [aCoder encodeObject:screenshotData forKey:CodingKey_Screenshot];
-    
-    NSData *appIconData = UIImagePNGRepresentation(self.appIcon);
-    [aCoder encodeObject:appIconData forKey:CodingKey_AppIcon];
-#elif TARGET_OS_MAC
-    NSData *screenshotData = [self.screenshot TIFFRepresentation];
-    [aCoder encodeObject:screenshotData forKey:CodingKey_Screenshot];
-    
-    NSData *appIconData = [self.appIcon TIFFRepresentation];
-    [aCoder encodeObject:appIconData forKey:CodingKey_AppIcon];
-#endif
+    [aCoder encodeObject:[self.screenshot pv_inspect_data] forKey:CodingKey_Screenshot];
+    [aCoder encodeObject:[self.appIcon pv_inspect_data] forKey:CodingKey_AppIcon];
     
     [aCoder encodeObject:self.appName forKey:CodingKey_AppName];
     [aCoder encodeObject:self.appBundleIdentifier forKey:@"appBundleIdentifier"];

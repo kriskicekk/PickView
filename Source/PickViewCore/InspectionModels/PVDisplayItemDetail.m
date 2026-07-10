@@ -14,7 +14,7 @@
 static NSValue *PVValueFromCGRect(CGRect rect) {
 #if TARGET_OS_IPHONE
     return [NSValue valueWithCGRect:rect];
-#elif TARGET_OS_MAC
+#elif TARGET_OS_OSX
     return [NSValue valueWithRect:NSRectFromCGRect(rect)];
 #endif
 }

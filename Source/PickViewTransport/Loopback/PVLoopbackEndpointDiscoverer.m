@@ -1,22 +1,23 @@
 //
-//  PVSimulatorEndpointDiscoverer.m
+//  PVLoopbackEndpointDiscoverer.m
 //  PickView
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#import "PVSimulatorEndpointDiscoverer.h"
-#import "PVSimulatorEndpoint.h"
+#import "PVLoopbackEndpointDiscoverer.h"
+
 #import "PVEndpointDiscovererDelegate.h"
+#import "PVLoopbackEndpoint.h"
 #import "PVPortConstant.h"
 
-@interface PVSimulatorEndpointDiscoverer ()
+@interface PVLoopbackEndpointDiscoverer ()
 @property (nonatomic, assign) int startPort;
 @property (nonatomic, assign) int endPort;
-@property (nonatomic, strong) NSArray<PVSimulatorEndpoint *> *endpoints;
+@property (nonatomic, strong) NSArray<PVLoopbackEndpoint *> *endpoints;
 @end
 
-@implementation PVSimulatorEndpointDiscoverer
+@implementation PVLoopbackEndpointDiscoverer
 
 - (instancetype)init {
     return [self initWithPortRangeStart:PVDefaultPortStart end:PVDefaultPortEnd];
@@ -32,9 +33,9 @@
 }
 
 - (void)start {
-    NSMutableArray<PVSimulatorEndpoint *> *endpoints = [NSMutableArray array];
+    NSMutableArray<PVLoopbackEndpoint *> *endpoints = [NSMutableArray array];
     for (int port = self.startPort; port <= self.endPort; port++) {
-        PVSimulatorEndpoint *endpoint = [[PVSimulatorEndpoint alloc] initWithHost:@"127.0.0.1" port:port];
+        PVLoopbackEndpoint *endpoint = [[PVLoopbackEndpoint alloc] initWithHost:@"127.0.0.1" port:port];
         [endpoints addObject:endpoint];
         [self.delegate discoverer:self didFindEndpoint:endpoint];
     }
@@ -42,7 +43,7 @@
 }
 
 - (void)stop {
-    for (PVSimulatorEndpoint *endpoint in self.endpoints) {
+    for (PVLoopbackEndpoint *endpoint in self.endpoints) {
         [self.delegate discoverer:self didRemoveEndpoint:endpoint];
     }
     self.endpoints = @[];

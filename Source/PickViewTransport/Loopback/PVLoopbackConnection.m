@@ -1,21 +1,22 @@
 //
-//  PVSimulatorConnection.m
+//  PVLoopbackConnection.m
 //  PickView
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#import "PVSimulatorConnection.h"
-#import "PVSimulatorEndpoint.h"
-#import "PVFrame.h"
-#import "PVErrorCode.h"
+#import "PVLoopbackConnection.h"
+
 #import "PVConnectionDelegate.h"
+#import "PVErrorCode.h"
+#import "PVFrame.h"
+#import "PVLoopbackEndpoint.h"
 
 #import <PeerTalk/PTChannel.h>
 
-@implementation PVSimulatorConnection
+@implementation PVLoopbackConnection
 
-- (instancetype)initWithEndpoint:(PVSimulatorEndpoint *)endpoint {
+- (instancetype)initWithEndpoint:(PVLoopbackEndpoint *)endpoint {
     self = [super init];
     if (self) {
         self.endpoint = endpoint;
@@ -23,8 +24,21 @@
     return self;
 }
 
+- (instancetype)initWithAcceptedChannel:(PTChannel *)channel {
+    self = [super init];
+    if (self) {
+        self.channel = channel;
+        self.channel.delegate = (id<PTChannelDelegate>)self;
+        [self updateState:PVConnectionStateConnected];
+    }
+    return self;
+}
+
 - (NSString *)connectionIdentifier {
-    return self.endpoint.identifier;
+    if (self.endpoint) {
+        return self.endpoint.identifier;
+    }
+    return [NSString stringWithFormat:@"loopback:accepted:%p", self.channel];
 }
 
 - (void)connectWithCompletion:(void (^)(NSError * _Nullable))completion {
@@ -33,10 +47,20 @@
         return;
     }
 
+    PVLoopbackEndpoint *endpoint = (PVLoopbackEndpoint *)self.endpoint;
+    if (!endpoint) {
+        if (completion) {
+            NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                                 code:PVErrorCodeUnsupportedEndpoint
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Loopback endpoint is missing."}];
+            completion(error);
+        }
+        return;
+    }
+
     [self updateState:PVConnectionStateConnecting];
     PTChannel *channel = [PTChannel channelWithDelegate:(id<PTChannelDelegate>)self];
     self.channel = channel;
-    PVSimulatorEndpoint *endpoint = (PVSimulatorEndpoint *)self.endpoint;
     [channel connectToPort:endpoint.port IPv4Address:INADDR_LOOPBACK callback:^(NSError *error, PTAddress *address) {
         if (error) {
             [self cleanupChannel];
@@ -56,7 +80,9 @@
 - (void)sendFrame:(PVFrame *)frame completion:(void (^)(NSError * _Nullable))completion {
     if (self.state != PVConnectionStateConnected) {
         if (completion) {
-            NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeDisconnected userInfo:@{NSLocalizedDescriptionKey: @"Simulator connection is not connected."}];
+            NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                                 code:PVErrorCodeDisconnected
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Loopback connection is not connected."}];
             completion(error);
         }
         return;

@@ -93,6 +93,9 @@
             case PVAppInfoDeviceOthers:
                 deviceIcon = NSImageMake(@"icon_iphone_small");
                 break;
+            case PVAppInfoDeviceMac:
+                deviceIcon = [NSImage imageWithSystemSymbolName:@"desktopcomputer" accessibilityDescription:@"Mac"];
+                break;
             default:
                 deviceIcon = NSImageMake(@"icon_simulator_small");
                 break;

@@ -7,6 +7,7 @@
 #import "PVCustomAttrModification.h"
 #import "PVDisplayItem.h"
 #import "PVDisplayItemDetail.h"
+#import "PVErrorCode.h"
 #import "PVHierarchyInfo.h"
 #import "PVInspectionRequestClient.h"
 #import "PVInspectionDefines.h"
@@ -21,7 +22,18 @@
 
 @end
 
+static NSError *PVDetailUnsupportedCapabilityError(void) {
+    return [NSError errorWithDomain:PVErrorDomain
+                               code:PVErrorCodeUnsupportedEndpoint
+                           userInfo:@{NSLocalizedDescriptionKey: @"The inspected app does not support this operation."}];
+}
+
 @implementation PVDetailInspectableApp
+
+- (BOOL)supportsCapability:(PVPeerCapability)capability {
+    PVPeerCapability capabilities = self.session.peerIdentity.capabilities;
+    return capabilities == 0 || (capabilities & capability) == capability;
+}
 
 - (instancetype)init {
     self = [super init];
@@ -41,10 +53,16 @@
 }
 
 - (RACSignal *)submitInbuiltModification:(PVAttributeModification *)modification {
+    if (![self supportsCapability:PVPeerCapabilityAttributeModification]) {
+        return [RACSignal error:PVDetailUnsupportedCapabilityError()];
+    }
     return [self requestWithType:PVRequestTypeModifyAttribute object:modification timeoutInterval:10];
 }
 
 - (RACSignal *)submitCustomModification:(PVCustomAttrModification *)modification {
+    if (![self supportsCapability:PVPeerCapabilityCustomAttributes]) {
+        return [RACSignal error:PVDetailUnsupportedCapabilityError()];
+    }
     return [self requestWithType:PVRequestTypeCustomAttrModification object:modification timeoutInterval:10];
 }
 
@@ -145,6 +163,9 @@
 }
 
 - (RACSignal *)invokeMethodWithOid:(unsigned long)oid text:(NSString *)text {
+    if (![self supportsCapability:PVPeerCapabilityMethodInvocation]) {
+        return [RACSignal error:PVDetailUnsupportedCapabilityError()];
+    }
     if (oid == 0 || !text.length) {
         return [RACSignal error:PVInspectErr_Inner];
     }
@@ -167,6 +188,9 @@
 }
 
 - (RACSignal *)fetchImageWithImageViewOid:(unsigned long)oid {
+    if (![self supportsCapability:PVPeerCapabilityImageExtraction]) {
+        return [RACSignal error:PVDetailUnsupportedCapabilityError()];
+    }
     if (!oid) {
         return [RACSignal error:PVInspectErr_Inner];
     }
@@ -174,6 +198,9 @@
 }
 
 - (RACSignal *)modifyGestureRecognizer:(unsigned long)oid toBeEnabled:(BOOL)shouldBeEnabled {
+    if (![self supportsCapability:PVPeerCapabilityGestureModification]) {
+        return [RACSignal error:PVDetailUnsupportedCapabilityError()];
+    }
     if (!oid) {
         return [RACSignal error:PVInspectErr_Inner];
     }

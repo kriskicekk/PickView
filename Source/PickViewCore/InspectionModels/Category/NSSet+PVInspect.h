@@ -12,8 +12,8 @@
 #import "TargetConditionals.h"
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
-#elif TARGET_OS_MAC
-#import <Appkit/Appkit.h>
+#elif TARGET_OS_OSX
+#import <AppKit/AppKit.h>
 #endif
 
 @interface NSSet<__covariant ValueType> (PickView)
@@ -32,4 +32,3 @@
 - (BOOL)pv_inspect_any:(BOOL (^)(ValueType obj))block;
 
 @end
-

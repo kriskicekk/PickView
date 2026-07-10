@@ -1,18 +1,18 @@
 //
-//  PVSimulatorEndpoint.h
+//  PVLoopbackEndpoint.h
 //  PickView
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#ifndef PVSimulatorEndpoint_h
-#define PVSimulatorEndpoint_h
+#ifndef PVLoopbackEndpoint_h
+#define PVLoopbackEndpoint_h
 
 #import "PVEndpointProtocol.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PVSimulatorEndpoint : NSObject <PVEndpointProtocol>
+@interface PVLoopbackEndpoint : NSObject <PVEndpointProtocol>
 
 @property (nonatomic, assign, readonly) int port;
 @property (nonatomic, copy, readonly) NSString *host;
@@ -24,4 +24,4 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-#endif /* PVSimulatorEndpoint_h */
+#endif /* PVLoopbackEndpoint_h */

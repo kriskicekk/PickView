@@ -141,7 +141,9 @@ NSString *const PVDetailInspectingAppDidEndNotificationName = @"PVDetailInspecti
                                   needImages:(BOOL)needImages
                                   localInfos:(NSArray<PVAppInfo *> *)localInfos {
     NSArray<PVAppInfo *> *validAppInfos = [localInfos pv_inspect_filter:^BOOL(PVAppInfo *info) {
-        return [[NSDate date] timeIntervalSince1970] - info.cachedTimestamp <= 8;
+        BOOL cacheIsFresh = [[NSDate date] timeIntervalSince1970] - info.cachedTimestamp <= 8;
+        BOOL hasRequestedImages = !needImages || info.screenshot != nil;
+        return cacheIsFresh && hasRequestedImages;
     }];
     NSArray<NSNumber *> *localInfoIdentifiers = [validAppInfos pv_inspect_map:^id(NSUInteger idx, PVAppInfo *value) {
         return @(value.appInfoIdentifier);
@@ -227,12 +229,17 @@ NSString *const PVDetailInspectingAppDidEndNotificationName = @"PVDetailInspecti
 }
 
 - (PVAppInfoDevice)deviceTypeForSession:(PVClientSession *)session {
-    NSString *endpointClassName = NSStringFromClass(session.endpoint.class);
-    if ([endpointClassName containsString:@"Simulator"]) {
-        return PVAppInfoDeviceSimulator;
-    }
-    if ([session.peerIdentity.deviceName localizedCaseInsensitiveContainsString:@"iPad"]) {
-        return PVAppInfoDeviceIPad;
+    switch (session.peerIdentity.platform) {
+        case PVPeerPlatformIOSSimulator:
+            return PVAppInfoDeviceSimulator;
+        case PVPeerPlatformMacOS:
+            return PVAppInfoDeviceMac;
+        case PVPeerPlatformIOSDevice:
+        case PVPeerPlatformUnknown:
+            if ([session.peerIdentity.deviceName localizedCaseInsensitiveContainsString:@"iPad"]) {
+                return PVAppInfoDeviceIPad;
+            }
+            return PVAppInfoDeviceOthers;
     }
     return PVAppInfoDeviceOthers;
 }

@@ -10,6 +10,8 @@
 #import "PVPeerIdentityConstant.h"
 #import "PVUtils.h"
 
+#import <TargetConditionals.h>
+
 @interface PVPeerIdentity()
 
 @property (nonatomic, copy) NSString *uuid;
@@ -21,6 +23,12 @@
 @property (nonatomic, copy) NSString *appName;
 
 @property (nonatomic, copy) NSString *systemVersion;
+
+@property (nonatomic, assign) PVPeerPlatform platform;
+
+@property (nonatomic, assign) PVPeerUIFramework uiFramework;
+
+@property (nonatomic, assign) PVPeerCapability capabilities;
 
 @property (nonatomic, copy) NSString *protocolVersion;
 
@@ -42,6 +50,52 @@ static NSString *PVPeerIdentityStringFromObject(id object) {
     }
 
     return @"";
+}
+
+static PVPeerPlatform PVPeerIdentityPlatformFromObject(id object) {
+    NSInteger value = [object respondsToSelector:@selector(integerValue)] ? [object integerValue] : PVPeerPlatformUnknown;
+    switch (value) {
+        case PVPeerPlatformIOSDevice:
+        case PVPeerPlatformIOSSimulator:
+        case PVPeerPlatformMacOS:
+            return (PVPeerPlatform)value;
+        default:
+            return PVPeerPlatformUnknown;
+    }
+}
+
+static PVPeerPlatform PVLocalPeerPlatform(void) {
+#if TARGET_OS_SIMULATOR
+    return PVPeerPlatformIOSSimulator;
+#elif TARGET_OS_OSX || TARGET_OS_MACCATALYST
+    return PVPeerPlatformMacOS;
+#elif TARGET_OS_IOS
+    return PVPeerPlatformIOSDevice;
+#else
+    return PVPeerPlatformUnknown;
+#endif
+}
+
+static PVPeerUIFramework PVLocalPeerUIFramework(void) {
+#if TARGET_OS_IPHONE || TARGET_OS_MACCATALYST
+    return PVPeerUIFrameworkUIKit;
+#elif TARGET_OS_OSX
+    return PVPeerUIFrameworkAppKit;
+#else
+    return PVPeerUIFrameworkUnknown;
+#endif
+}
+
+static PVPeerCapability PVLocalPeerCapabilities(void) {
+    return PVPeerCapabilityHierarchy |
+           PVPeerCapabilityScreenshots |
+           PVPeerCapabilityAttributeReading |
+           PVPeerCapabilityAttributeModification |
+           PVPeerCapabilityCustomAttributes |
+           PVPeerCapabilityMethodInvocation |
+           PVPeerCapabilityGestureModification |
+           PVPeerCapabilityImageExtraction |
+           PVPeerCapabilityAutoLayout;
 }
 
 static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
@@ -75,6 +129,13 @@ static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
         _deviceName = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentityDeviceNameKey]) copy];
         _appName = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentityAppNameKey]) copy];
         _systemVersion = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentitySystemVersionKey]) copy];
+        _platform = PVPeerIdentityPlatformFromObject(dictionary[PVPeerIdentityPlatformKey]);
+        _uiFramework = [dictionary[PVPeerIdentityUIFrameworkKey] respondsToSelector:@selector(integerValue)]
+            ? [dictionary[PVPeerIdentityUIFrameworkKey] integerValue]
+            : PVPeerUIFrameworkUnknown;
+        _capabilities = [dictionary[PVPeerIdentityCapabilitiesKey] respondsToSelector:@selector(unsignedIntegerValue)]
+            ? [dictionary[PVPeerIdentityCapabilitiesKey] unsignedIntegerValue]
+            : 0;
         _protocolVersion = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentityProtocolVersionKey]) copy];
         _supportedPeerVersionMin = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentitySupportedPeerMinKey]) copy];
         _supportedPeerVersionMax = [PVPeerIdentityStringFromObject(dictionary[PVPeerIdentitySupportedPeerMaxKey]) copy];
@@ -97,6 +158,9 @@ static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
     identity.deviceName = PVUtils.deviceName;
     identity.appName = PVUtils.appName;
     identity.systemVersion = PVUtils.systemVersion;
+    identity.platform = PVLocalPeerPlatform();
+    identity.uiFramework = PVLocalPeerUIFramework();
+    identity.capabilities = PVLocalPeerCapabilities();
     identity.protocolVersion = protocolVersion;
     identity.supportedPeerVersionMin = supportedPeerVersionMin;
     identity.supportedPeerVersionMax = supportedPeerVersionMax;
@@ -142,6 +206,9 @@ static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
         PVPeerIdentityDeviceNameKey: self.deviceName ?: @"",
         PVPeerIdentityAppNameKey: self.appName ?: @"",
         PVPeerIdentitySystemVersionKey: self.systemVersion ?: @"",
+        PVPeerIdentityPlatformKey: @(self.platform),
+        PVPeerIdentityUIFrameworkKey: @(self.uiFramework),
+        PVPeerIdentityCapabilitiesKey: @(self.capabilities),
         PVPeerIdentityProtocolVersionKey: self.protocolVersion ?: @"",
         PVPeerIdentitySupportedPeerMinKey: self.supportedPeerVersionMin ?: @"",
         PVPeerIdentitySupportedPeerMaxKey: self.supportedPeerVersionMax ?: @""
@@ -153,6 +220,10 @@ static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
                                                       format:NSPropertyListBinaryFormat_v1_0
                                                      options:0
                                                        error:nil];
+}
+
+- (BOOL)isMacOSPlatform {
+    return self.platform == PVPeerPlatformMacOS;
 }
 
 @end

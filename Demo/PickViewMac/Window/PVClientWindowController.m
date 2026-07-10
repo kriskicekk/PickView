@@ -63,6 +63,8 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 @property (nonatomic, copy, nullable) NSString *inspectedEndpointIdentifier;
 @property (nonatomic, assign) BOOL isEnteringSession;
 @property (nonatomic, assign) NSUInteger launchPreviewRequestID;
+@property (nonatomic, assign) BOOL launchPreviewRequestInFlight;
+@property (nonatomic, assign) NSUInteger launchPreviewRetryCount;
 
 @end
 
@@ -106,7 +108,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     }
     [self.window center];
 
-    self.statusLabel = [NSTextField labelWithString:@"Waiting for USB device, simulator, or LAN service..."];
+    self.statusLabel = [NSTextField labelWithString:@"Waiting for USB device, local app, or LAN service..."];
     self.statusLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightRegular];
     self.statusLabel.textColor = NSColor.secondaryLabelColor;
     self.statusLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -491,19 +493,23 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 }
 
 - (void)refreshLaunchPreviewImagesIfNeeded {
-    if (!self.launchWindowController.window.isVisible || !self.deviceSessions.count) {
+    if (!self.launchWindowController.window.isVisible || !self.deviceSessions.count || self.launchPreviewRequestInFlight) {
         return;
     }
 
     NSArray<PVClientSession *> *sessionsNeedingPreview = [self.deviceSessions pv_inspect_filter:^BOOL(PVClientSession *session) {
-        return session.identifier.length > 0 && self.devicePreviewImagesByEndpointID[session.identifier] == nil;
+        return session.state == PVClientSessionStateReady &&
+               session.identifier.length > 0 &&
+               self.devicePreviewImagesByEndpointID[session.identifier] == nil;
     }];
     if (!sessionsNeedingPreview.count) {
+        self.launchPreviewRetryCount = 0;
         return;
     }
 
     NSUInteger requestID = self.launchPreviewRequestID + 1;
     self.launchPreviewRequestID = requestID;
+    self.launchPreviewRequestInFlight = YES;
 
     @weakify(self);
     [[[[PVDetailAppsManager sharedInstance] fetchAppInfosWithImage:YES localInfos:nil] deliverOnMainThread] subscribeNext:^(NSArray<PVDetailInspectableApp *> *apps) {
@@ -511,6 +517,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
         if (!self || requestID != self.launchPreviewRequestID) {
             return;
         }
+        self.launchPreviewRequestInFlight = NO;
 
         BOOL didUpdate = NO;
         for (PVDetailInspectableApp *app in apps) {
@@ -527,9 +534,35 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
             [self.launchWindowController reloadWithSessions:self.deviceSessions
                                               previewImages:self.devicePreviewImagesByEndpointID.copy];
         }
+        [self scheduleLaunchPreviewRetryIfNeeded];
     } error:^(NSError * _Nullable error) {
+        @strongify(self);
+        self.launchPreviewRequestInFlight = NO;
         NSLog(@"[PickView Mac] Failed to load app previews: %@", error.localizedDescription);
+        [self scheduleLaunchPreviewRetryIfNeeded];
     }];
+}
+
+- (void)scheduleLaunchPreviewRetryIfNeeded {
+    if (!self.launchWindowController.window.isVisible || self.launchPreviewRetryCount >= 5) {
+        return;
+    }
+    BOOL stillNeedsPreview = [self.deviceSessions pv_inspect_any:^BOOL(PVClientSession *session) {
+        return session.state == PVClientSessionStateReady &&
+               session.identifier.length > 0 &&
+               self.devicePreviewImagesByEndpointID[session.identifier] == nil;
+    }];
+    if (!stillNeedsPreview) {
+        self.launchPreviewRetryCount = 0;
+        return;
+    }
+    self.launchPreviewRetryCount += 1;
+    NSUInteger requestID = self.launchPreviewRequestID;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (requestID == self.launchPreviewRequestID) {
+            [self refreshLaunchPreviewImagesIfNeeded];
+        }
+    });
 }
 
 - (NSSize)workspaceWindowSize {

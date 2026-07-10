@@ -1,25 +1,27 @@
 //
-//  PVLocalLoopbackListener.m
+//  PVLoopbackListener.m
 //  PickViewServer
 //
 //  Created by kris cheng on 2026/7/6.
 //
 
-#import "PVLocalLoopbackListener.h"
-#import "PVLocalTCPConnection.h"
+#import "PVLoopbackListener.h"
+
+#import "PVLoopbackConnection.h"
 #import "PVPortConstant.h"
+
 #import <PeerTalk/PTChannel.h>
 
-@interface PVLocalLoopbackListener () <PTChannelDelegate>
+@interface PVLoopbackListener () <PTChannelDelegate>
 @property (nonatomic, assign) int startPort;
 @property (nonatomic, assign) int endPort;
 @property (nonatomic, assign) int listeningPort;
 @property (nonatomic, strong) PTChannel *serverChannel;
-@property (nonatomic, strong, nullable) PVLocalTCPConnection *activeConnection;
+@property (nonatomic, strong, nullable) PVLoopbackConnection *activeConnection;
 @property (nonatomic, copy) void (^startCompletion)(NSError *);
 @end
 
-@implementation PVLocalLoopbackListener
+@implementation PVLoopbackListener
 
 - (instancetype)init {
     return [self initWithPortRangeStart:PVDefaultPortStart end:PVDefaultPortEnd];
@@ -117,7 +119,7 @@
         }
     }
 
-    PVLocalTCPConnection *connection = [[PVLocalTCPConnection alloc] initWithAcceptedChannel:otherChannel];
+    PVLoopbackConnection *connection = [[PVLoopbackConnection alloc] initWithAcceptedChannel:otherChannel];
     self.activeConnection = connection;
     if ([self.delegate respondsToSelector:@selector(listener:didAcceptConnection:)]) {
         [self.delegate listener:self didAcceptConnection:connection];

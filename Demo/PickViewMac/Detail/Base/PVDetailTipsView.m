@@ -135,14 +135,19 @@
 }
 
 - (void)setImageByDeviceType:(PVAppInfoDevice)type {
-    if (type == 0) {
-        self.image = NSImageMake(@"icon_simulator_big");
-    } else if (type == 1) {
-        self.image = NSImageMake(@"icon_ipad_big");
-    } else if (type == 2) {
-        self.image = NSImageMake(@"icon_iphone_big");
-    } else {
-        NSAssert(NO, @"");
+    switch (type) {
+        case PVAppInfoDeviceSimulator:
+            self.image = NSImageMake(@"icon_simulator_big");
+            break;
+        case PVAppInfoDeviceIPad:
+            self.image = NSImageMake(@"icon_ipad_big");
+            break;
+        case PVAppInfoDeviceOthers:
+            self.image = NSImageMake(@"icon_iphone_big");
+            break;
+        case PVAppInfoDeviceMac:
+            self.image = [NSImage imageWithSystemSymbolName:@"desktopcomputer" accessibilityDescription:@"Mac"];
+            break;
     }
 }
 

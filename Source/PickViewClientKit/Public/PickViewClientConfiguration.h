@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PickViewClientConfiguration : NSObject
 
 @property (nonatomic, assign) BOOL enableUSBDiscovery;
-@property (nonatomic, assign) BOOL enableSimulatorDiscovery;
+@property (nonatomic, assign) BOOL enableLoopbackDiscovery;
 @property (nonatomic, assign) BOOL enableLANDiscovery;
 @property (nonatomic, assign) BOOL preferUSBTransport;
 @property (nonatomic, assign) NSTimeInterval scanInterval;
