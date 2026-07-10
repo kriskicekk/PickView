@@ -47,6 +47,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)itemIsKindOfClassWithName:(NSString *)className;
 - (BOOL)itemIsKindOfClassesWithNames:(NSSet<NSString *> *)classNames;
 
+- (unsigned long)bestObjectOidPreferView:(BOOL)preferView;
+- (NSArray<NSNumber *> *)availableObjectOidsPreferView:(BOOL)preferView;
+
 @end
 
 NS_ASSUME_NONNULL_END

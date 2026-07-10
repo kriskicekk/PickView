@@ -11,7 +11,8 @@
 #import "PVEndpointProtocol.h"
 #import "PVPeerIdentity.h"
 
-static NSSize PVLaunchDevicePreviewSize = {142.0, 260.0};
+static NSSize const PVLaunchPhonePreviewSize = {142.0, 260.0};
+static NSSize const PVLaunchMacPreviewSize = {400.0, 260.0};
 static NSEdgeInsets PVLaunchDeviceInsets = {12.0, 25.0, 12.0, 25.0};
 static CGFloat const PVLaunchDeviceIconTop = 10.0;
 static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
@@ -23,6 +24,7 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
 @property (nonatomic, strong) NSImageView *iconImageView;
 @property (nonatomic, strong) NSTextField *titleLabel;
 @property (nonatomic, strong) NSTextField *subtitleLabel;
+@property (nonatomic, assign) NSSize previewSize;
 
 @end
 
@@ -34,6 +36,7 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
         self.wantsLayer = YES;
         self.layer.cornerRadius = 4;
         self.layer.masksToBounds = YES;
+        _previewSize = PVLaunchPhonePreviewSize;
 
         _hoverBackgroundLayer = [CALayer layer];
         _hoverBackgroundLayer.opacity = 0;
@@ -85,10 +88,11 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
     NSString *bundleID = identity.bundleID.length ? identity.bundleID : session.identifier ?: @"";
 
     if (identity.isMacOSPlatform) {
-        PVLaunchDevicePreviewSize = CGSizeMake(400, 260);
+        self.previewSize = PVLaunchMacPreviewSize;
     } else {
-        PVLaunchDevicePreviewSize = CGSizeMake(142, 260);
+        self.previewSize = PVLaunchPhonePreviewSize;
     }
+
 
     self.previewImageView.image = previewImage ?: [self placeholderImageWithTitle:@"Preview"];
     self.iconImageView.image = [self iconImageForSession:session];
@@ -104,9 +108,9 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
     [super layout];
     self.hoverBackgroundLayer.frame = self.layer.bounds;
 
-    CGFloat previewX = (NSWidth(self.bounds) - PVLaunchDevicePreviewSize.width) / 2.0;
-    CGFloat previewY = NSHeight(self.bounds) - PVLaunchDeviceInsets.top - PVLaunchDevicePreviewSize.height;
-    self.previewImageView.frame = NSMakeRect(previewX, previewY, PVLaunchDevicePreviewSize.width, PVLaunchDevicePreviewSize.height);
+    CGFloat previewX = (NSWidth(self.bounds) - self.previewSize.width) / 2.0;
+    CGFloat previewY = NSHeight(self.bounds) - PVLaunchDeviceInsets.top - self.previewSize.height;
+    self.previewImageView.frame = NSMakeRect(previewX, previewY, self.previewSize.width, self.previewSize.height);
 
     NSSize iconSize = self.iconImageView.image.size;
     if (NSEqualSizes(iconSize, NSZeroSize)) {
@@ -144,10 +148,10 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
         iconSize = NSMakeSize(28, 28);
     }
 
-    CGFloat previewWidth = PVLaunchDevicePreviewSize.width + PVLaunchDeviceInsets.left + PVLaunchDeviceInsets.right;
+    CGFloat previewWidth = self.previewSize.width + PVLaunchDeviceInsets.left + PVLaunchDeviceInsets.right;
     CGFloat labelsWidth = iconSize.width + PVLaunchDeviceIconTextSpacing + MAX([self titleSizeForWidth:CGFLOAT_MAX].width, [self subtitleSizeForWidth:CGFLOAT_MAX].width) + PVLaunchDeviceInsets.left + PVLaunchDeviceInsets.right;
     CGFloat width = MAX(previewWidth, labelsWidth);
-    CGFloat height = PVLaunchDeviceInsets.top + PVLaunchDevicePreviewSize.height + PVLaunchDeviceIconTop + iconSize.height + PVLaunchDeviceInsets.bottom;
+    CGFloat height = PVLaunchDeviceInsets.top + self.previewSize.height + PVLaunchDeviceIconTop + iconSize.height + PVLaunchDeviceInsets.bottom;
     return NSMakeSize(ceil(width), ceil(height));
 }
 
@@ -223,10 +227,10 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
 }
 
 - (NSImage *)placeholderImageWithTitle:(NSString *)title {
-    NSImage *image = [[NSImage alloc] initWithSize:PVLaunchDevicePreviewSize];
+    NSImage *image = [[NSImage alloc] initWithSize:self.previewSize];
     [image lockFocus];
     [[NSColor colorWithWhite:0.92 alpha:1] setFill];
-    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:NSMakeRect(0, 0, PVLaunchDevicePreviewSize.width, PVLaunchDevicePreviewSize.height) xRadius:14 yRadius:14];
+    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:NSMakeRect(0, 0, self.previewSize.width, self.previewSize.height) xRadius:14 yRadius:14];
     [path fill];
 
     NSDictionary<NSAttributedStringKey, id> *attributes = @{
@@ -234,8 +238,8 @@ static CGFloat const PVLaunchDeviceIconTextSpacing = 8.0;
         NSForegroundColorAttributeName: NSColor.secondaryLabelColor
     };
     NSSize textSize = [title sizeWithAttributes:attributes];
-    [title drawAtPoint:NSMakePoint((PVLaunchDevicePreviewSize.width - textSize.width) / 2.0,
-                                   (PVLaunchDevicePreviewSize.height - textSize.height) / 2.0)
+    [title drawAtPoint:NSMakePoint((self.previewSize.width - textSize.width) / 2.0,
+                                   (self.previewSize.height - textSize.height) / 2.0)
         withAttributes:attributes];
     [image unlockFocus];
     return image;

@@ -266,6 +266,18 @@
                  PVAttrGroup_UITextField: NSImageMake(@"dashboard_textfield"),
                  PVAttrGroup_UIVisualEffectView: NSImageMake(@"dashboard_effectview"),
                  PVAttrGroup_UIStackView: NSImageMake(@"dashboard_stackview"),
+                 PVAttrGroup_NSImageView: NSImageMake(@"dashboard_imageview"),
+                 PVAttrGroup_NSControl: NSImageMake(@"dashboard_control"),
+                 PVAttrGroup_NSButton: NSImageMake(@"dashboard_button"),
+                 PVAttrGroup_NSScrollView: NSImageMake(@"dashboard_scrollview"),
+                 PVAttrGroup_NSTableView: NSImageMake(@"dashboard_tableview"),
+                 PVAttrGroup_NSTextView: NSImageMake(@"dashboard_textview"),
+                 PVAttrGroup_NSTextField: NSImageMake(@"dashboard_textfield"),
+                 PVAttrGroup_NSVisualEffectView: NSImageMake(@"dashboard_effectview"),
+                 PVAttrGroup_NSStackView: NSImageMake(@"dashboard_stackview"),
+                 PVAttrGroup_NSWindow: NSImageMake(@"dashboard_layer"),
+                 PVAttrGroup_UIWindowScene: NSImageMake(@"dashboard_layer"),
+                 PVAttrGroup_UITraitCollection: NSImageMake(@"dashboard_layer"),
                  PVAttrGroup_UserCustom: NSImageMake(@"dashboard_custom")
                  };
     });

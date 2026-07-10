@@ -48,7 +48,7 @@
 - (void)removeTaskWithItem:(PVDisplayItem *)item {
     for (PVStaticAsyncUpdateTasksPackage *pack in self.packages) {
         pack.tasks = [pack.tasks pv_inspect_filter:^BOOL(PVStaticAsyncUpdateTask *task) {
-            if (task.oid == item.layerObject.oid) {
+            if ([[item availableObjectOidsPreferView:YES] containsObject:@(task.oid)]) {
                 return NO;
             } else {
                 return YES;
@@ -206,10 +206,16 @@
 }
 
 - (PVStaticAsyncUpdateTask *)_taskFromDisplayItem:(PVDisplayItem *)item type:(PVStaticAsyncUpdateTaskType)type {
+    BOOL preferViewOid = [PVDetailHelper appInfoLooksLikeMacTarget:self.dataSource.rawHierarchyInfo.appInfo];
+    unsigned long oid = [item bestObjectOidPreferView:preferViewOid];
+    if (!oid) {
+        return nil;
+    }
     PVStaticAsyncUpdateTask *task = [PVStaticAsyncUpdateTask new];
-    task.oid = item.layerObject.oid;
+    task.oid = oid;
     task.frameSize = item.frame.size;
     task.taskType = type;
+    task.needBasisVisualInfo = YES;
     task.clientReadableVersion = [PVDetailHelper pickviewReadableVersion];
     return task;
 }
@@ -231,10 +237,14 @@
         }
         if (item == displayItem && item.subitems.count) {
             PVStaticAsyncUpdateTask *task = [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeSoloScreenshot];
-            [tasks addObject:task];
+            if (task) {
+                [tasks addObject:task];
+            }
         }
         PVStaticAsyncUpdateTask *task2 = [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeGroupScreenshot];
-        [tasks addObject:task2];
+        if (task2) {
+            [tasks addObject:task2];
+        }
     }];
     
     [self.modifyingUpdateProgressSignal sendNext:[RACTwoTuple tupleWithObjectsFromArray:@[@0, @0]]];

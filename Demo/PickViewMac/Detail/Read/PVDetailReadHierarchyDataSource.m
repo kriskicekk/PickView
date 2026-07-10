@@ -11,6 +11,7 @@
 #import "PVDisplayItem.h"
 #import "PVDetailPreferenceManager.h"
 #import "PVHierarchyInfo.h"
+#import "PVDisplayItem+PVClient.h"
 
 @interface PVDetailReadHierarchyDataSource ()
 
@@ -27,8 +28,9 @@
         [self reloadWithHierarchyInfo:file.hierarchyInfo keepState:NO];
 
         if (file.soloScreenshots.count || file.groupScreenshots.count) {
+            BOOL preferViewOid = [PVDetailHelper appInfoLooksLikeMacTarget:file.hierarchyInfo.appInfo];
             [self.flatItems enumerateObjectsUsingBlock:^(PVDisplayItem * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                unsigned long oid = obj.layerObject.oid;
+                unsigned long oid = [obj bestObjectOidPreferView:preferViewOid];
                 
                 NSData *soloData = file.soloScreenshots[@(oid)];
                 if (soloData) {

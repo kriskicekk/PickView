@@ -25,6 +25,15 @@ typedef char *(*PVSwiftDemangleFunction)(const char *, size_t, char *, size_t *,
         return input ?: @"";
     }
 
+    BOOL looksLikeMangledSwiftName = [input hasPrefix:@"_T"] ||
+                                     [input hasPrefix:@"$s"] ||
+                                     [input hasPrefix:@"$S"] ||
+                                     [input hasPrefix:@"_$s"] ||
+                                     [input hasPrefix:@"_$S"];
+    if (!looksLikeMangledSwiftName) {
+        return input;
+    }
+
     static NSMutableDictionary<NSString *, NSString *> *cache;
     static PVSwiftDemangleFunction demangleFunction = NULL;
     static dispatch_once_t onceToken;
@@ -60,6 +69,10 @@ typedef char *(*PVSwiftDemangleFunction)(const char *, size_t, char *, size_t *,
             NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
             NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
             demangled = [output stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            NSRange separatorRange = [demangled rangeOfString:@" ---> " options:NSBackwardsSearch];
+            if (separatorRange.location != NSNotFound) {
+                demangled = [demangled substringFromIndex:NSMaxRange(separatorRange)];
+            }
         } @catch (__unused NSException *exception) {
         }
     }

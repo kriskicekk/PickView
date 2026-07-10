@@ -16,6 +16,8 @@
         return self.customInfo.title;
     } else if (self.customDisplayTitle.length > 0) {
         return self.customDisplayTitle;
+    } else if (self.windowObject) {
+        return self.windowObject.lk_simpleDemangledClassName;
     } else if (self.viewObject) {
         return self.viewObject.lk_simpleDemangledClassName;
     } else if (self.layerObject) {
@@ -30,12 +32,16 @@
         return self.customInfo.subtitle;
     }
     
+    NSString *windowControllerName = self.hostWindowControllerObject.lk_simpleDemangledClassName;
+    if (windowControllerName.length) {
+        return [NSString stringWithFormat:@"%@.window", windowControllerName];
+    }
     NSString *text = self.hostViewControllerObject.lk_simpleDemangledClassName;
     if (text.length) {
         return [NSString stringWithFormat:@"%@.view", text];
     }
     
-    PVObject *representedObject = self.viewObject ? : self.layerObject;
+    PVObject *representedObject = self.windowObject ?: self.viewObject ?: self.layerObject;
     if (representedObject.specialTrace.length) {
         return representedObject.specialTrace;
         
@@ -51,7 +57,10 @@
 }
 
 - (BOOL)representedForSystemClass {
-    return [self.title hasPrefix:@"UI"] || [self.title hasPrefix:@"CA"] || [self.title hasPrefix:@"_"];
+    return [self.title hasPrefix:@"UI"] ||
+        [self.title hasPrefix:@"NS"] ||
+        [self.title hasPrefix:@"CA"] ||
+        [self.title hasPrefix:@"_"];
 }
 
 - (NSImage *)appropriateScreenshot {
@@ -164,7 +173,7 @@
     if (!targetClassNames.count) {
         return NO;
     }
-    PVObject *selfObj = self.viewObject ? : self.layerObject;
+    PVObject *selfObj = self.windowObject ?: self.viewObject ?: self.layerObject;
     if (!selfObj) {
         return NO;
     }
@@ -184,6 +193,37 @@
     }];
     
     return boolValue;
+}
+
+- (unsigned long)bestObjectOidPreferView:(BOOL)preferView {
+    if (self.windowObject.oid) {
+        return self.windowObject.oid;
+    }
+    if (preferView && self.viewObject.oid) {
+        return self.viewObject.oid;
+    }
+    if (self.layerObject.oid) {
+        return self.layerObject.oid;
+    }
+    return self.viewObject.oid;
+}
+
+- (NSArray<NSNumber *> *)availableObjectOidsPreferView:(BOOL)preferView {
+    NSMutableOrderedSet<NSNumber *> *oids = [NSMutableOrderedSet orderedSet];
+    unsigned long preferredOid = [self bestObjectOidPreferView:preferView];
+    if (preferredOid) {
+        [oids addObject:@(preferredOid)];
+    }
+    if (self.windowObject.oid) {
+        [oids addObject:@(self.windowObject.oid)];
+    }
+    if (self.viewObject.oid) {
+        [oids addObject:@(self.viewObject.oid)];
+    }
+    if (self.layerObject.oid) {
+        [oids addObject:@(self.layerObject.oid)];
+    }
+    return oids.array;
 }
 
 @end

@@ -64,8 +64,10 @@
     [coder encodeObject:self.subitems forKey:@"children"];
     [coder encodeBool:self.isHidden forKey:@"hidden"];
     [coder encodeFloat:self.alpha forKey:@"alpha"];
+    [coder encodeObject:self.windowObject forKey:@"windowObject"];
     [coder encodeObject:self.viewObject forKey:@"viewObject"];
     [coder encodeObject:self.layerObject forKey:@"layerObject"];
+    [coder encodeObject:self.hostWindowControllerObject forKey:@"hostWindowControllerObject"];
     [coder encodeObject:self.hostViewControllerObject forKey:@"hostViewControllerObject"];
     [coder encodeObject:self.attributesGroupList forKey:@"attributesGroupList"];
     [coder encodeObject:self.customAttrGroupList forKey:@"customAttrGroupList"];
@@ -114,8 +116,10 @@
         self.subitems = decodedSubitems ?: @[];
         _isHidden = [coder decodeBoolForKey:@"hidden"];
         _alpha = [coder containsValueForKey:@"alpha"] ? [coder decodeFloatForKey:@"alpha"] : 1;
+        _windowObject = [coder decodeObjectForKey:@"windowObject"];
         _viewObject = [coder decodeObjectForKey:@"viewObject"];
         _layerObject = [coder decodeObjectForKey:@"layerObject"];
+        _hostWindowControllerObject = [coder decodeObjectForKey:@"hostWindowControllerObject"];
         _hostViewControllerObject = [coder decodeObjectForKey:@"hostViewControllerObject"];
         self.attributesGroupList = [coder decodeObjectForKey:@"attributesGroupList"] ?: @[];
         self.customAttrGroupList = [coder decodeObjectForKey:@"customAttrGroupList"] ?: @[];
@@ -179,8 +183,10 @@
     item.bounds = self.bounds;
     item.soloScreenshot = self.soloScreenshot;
     item.groupScreenshot = self.groupScreenshot;
+    item.windowObject = self.windowObject.copy;
     item.viewObject = self.viewObject.copy;
     item.layerObject = self.layerObject.copy;
+    item.hostWindowControllerObject = self.hostWindowControllerObject.copy;
     item.hostViewControllerObject = self.hostViewControllerObject.copy;
     item.attributesGroupList = [self.attributesGroupList pv_inspect_map:^id(NSUInteger idx, PVAttributesGroup *value) { return value.copy; }];
     item.customAttrGroupList = [self.customAttrGroupList pv_inspect_map:^id(NSUInteger idx, PVAttributesGroup *value) { return value.copy; }];
@@ -214,7 +220,7 @@
 }
 
 - (PVObject *)displayingObject {
-    return self.viewObject ?: self.layerObject;
+    return self.windowObject ?: self.viewObject ?: self.layerObject;
 }
 
 - (void)setAttributesGroupList:(NSArray<PVAttributesGroup *> *)attributesGroupList {

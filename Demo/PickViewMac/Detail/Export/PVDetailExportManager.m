@@ -14,7 +14,7 @@
 #import "PVDetailDocument.h"
 #import "PVDetailHelper.h"
 #import "PVDetailNavigationManager.h"
-#import "PVDisplayItem.h"
+#import "PVDisplayItem+PVClient.h"
 
 @implementation PVDetailExportManager
 
@@ -40,10 +40,21 @@
     NSMutableDictionary<NSString *, NSData *> *groupScreenshots = [NSMutableDictionary dictionary];
     
     NSArray<PVDisplayItem *> *allItems = [PVDisplayItem flatItemsFromHierarchicalItems:info.displayItems];
+    BOOL preferViewOid = [PVDetailHelper appInfoLooksLikeMacTarget:info.appInfo];
     [allItems enumerateObjectsUsingBlock:^(PVDisplayItem * _Nonnull displayItem, NSUInteger idx, BOOL * _Nonnull stop) {
         displayItem.screenshotEncodeType = PVDisplayItemImageEncodeTypeNone;
-        soloScreenshots[@(displayItem.layerObject.oid)] = [self _compressedDataFromImage:displayItem.soloScreenshot compression:compression];
-        groupScreenshots[@(displayItem.layerObject.oid)] = [self _compressedDataFromImage:displayItem.groupScreenshot compression:compression];
+        unsigned long oid = [displayItem bestObjectOidPreferView:preferViewOid];
+        if (!oid) {
+            return;
+        }
+        NSData *soloData = [self _compressedDataFromImage:displayItem.soloScreenshot compression:compression];
+        NSData *groupData = [self _compressedDataFromImage:displayItem.groupScreenshot compression:compression];
+        if (soloData) {
+            soloScreenshots[@(oid)] = soloData;
+        }
+        if (groupData) {
+            groupScreenshots[@(oid)] = groupData;
+        }
     }];
     file.soloScreenshots = soloScreenshots.copy;
     file.groupScreenshots = groupScreenshots.copy;

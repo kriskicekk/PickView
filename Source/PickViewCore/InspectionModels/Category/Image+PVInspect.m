@@ -22,6 +22,23 @@
 @implementation NSImage (PVInspect)
 
 - (NSData *)pv_inspect_data {
+    NSBitmapImageRep *bestBitmapRep = nil;
+    for (NSImageRep *imageRep in self.representations) {
+        if (![imageRep isKindOfClass:NSBitmapImageRep.class]) {
+            continue;
+        }
+        NSBitmapImageRep *bitmapRep = (NSBitmapImageRep *)imageRep;
+        if (!bestBitmapRep || bitmapRep.pixelsWide * bitmapRep.pixelsHigh > bestBitmapRep.pixelsWide * bestBitmapRep.pixelsHigh) {
+            bestBitmapRep = bitmapRep;
+        }
+    }
+    if (bestBitmapRep) {
+        NSData *data = [bestBitmapRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+        if (data.length) {
+            return data;
+        }
+    }
+
     CGImageRef imageRef = [self CGImageForProposedRect:NULL context:nil hints:nil];
     if (!imageRef) {
         return nil;

@@ -54,11 +54,14 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 @property (nonatomic, strong) NSTextView *logView;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSTextField *> *inspectorValueLabels;
 @property (nonatomic, copy) NSArray<PVClientSession *> *deviceSessions;
+@property (nonatomic, copy) NSArray<PVClientSession *> *previewDeviceSessions;
+@property (nonatomic, copy) NSArray<PVClientSession *> *LANDeviceSessions;
 @property (nonatomic, copy) NSArray<PVWindowInfo *> *windowInfos;
 @property (nonatomic, strong, nullable) PVHierarchyInfo *currentHierarchy;
 @property (nonatomic, strong, nullable) PVDisplayItem *selectedDisplayItem;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVDisplayItemDetail *> *displayItemDetailsByID;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSImage *> *devicePreviewImagesByEndpointID;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, PVDetailInspectableApp *> *inspectableAppsByEndpointID;
 @property (nonatomic, copy, nullable) NSString *connectedLANEndpointIdentifier;
 @property (nonatomic, copy, nullable) NSString *inspectedEndpointIdentifier;
 @property (nonatomic, assign) BOOL isEnteringSession;
@@ -74,14 +77,20 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     self = [super initWithWindow:nil];
     if (self) {
         _deviceSessions = @[];
+        _previewDeviceSessions = @[];
+        _LANDeviceSessions = @[];
         _windowInfos = @[];
         _inspectorValueLabels = [NSMutableDictionary dictionary];
         _displayItemDetailsByID = [NSMutableDictionary dictionary];
         _devicePreviewImagesByEndpointID = [NSMutableDictionary dictionary];
+        _inspectableAppsByEndpointID = [NSMutableDictionary dictionary];
         _launchWindowController = [[PVLaunchWindowController alloc] init];
         __weak typeof(self) weakSelf = self;
         _launchWindowController.selectionHandler = ^(NSInteger row) {
             [weakSelf openDeviceAtRow:row];
+        };
+        _launchWindowController.LANSelectionHandler = ^(NSInteger row) {
+            [weakSelf openLANDeviceAtRow:row];
         };
         [self buildWindow];
     }
@@ -484,20 +493,37 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 
 - (void)reloadDeviceSessionsWithClient:(PickViewClient *)client {
     self.deviceSessions = client.sessionManager.allSessions;
+    self.LANDeviceSessions = client.sessionManager.lanSessions;
+    self.previewDeviceSessions = [self.deviceSessions pv_inspect_filter:^BOOL(PVClientSession *session) {
+        if (![session.endpoint isKindOfClass:PVLANEndpoint.class]) {
+            return YES;
+        }
+        return session.state == PVClientSessionStateReady &&
+               [session.identifier isEqualToString:self.connectedLANEndpointIdentifier];
+    }];
+    NSSet<NSString *> *activeEndpointIdentifiers = [NSSet setWithArray:[self.deviceSessions valueForKey:@"identifier"]];
+    for (NSString *identifier in self.inspectableAppsByEndpointID.allKeys.copy) {
+        if (![activeEndpointIdentifiers containsObject:identifier]) {
+            [self.inspectableAppsByEndpointID removeObjectForKey:identifier];
+            [self.devicePreviewImagesByEndpointID removeObjectForKey:identifier];
+        }
+    }
     if (self.toolbarEndpointIdentifier.length) {
         [self updateToolbarAppWithEndpointIdentifier:self.toolbarEndpointIdentifier];
     }
-    [self.launchWindowController reloadWithSessions:self.deviceSessions
-                                      previewImages:self.devicePreviewImagesByEndpointID.copy];
+    [self.launchWindowController reloadWithPreviewSessions:self.previewDeviceSessions
+                                               LANSessions:self.LANDeviceSessions
+                                             previewImages:self.devicePreviewImagesByEndpointID.copy
+                            connectedLANEndpointIdentifier:self.connectedLANEndpointIdentifier];
     [self refreshLaunchPreviewImagesIfNeeded];
 }
 
 - (void)refreshLaunchPreviewImagesIfNeeded {
-    if (!self.launchWindowController.window.isVisible || !self.deviceSessions.count || self.launchPreviewRequestInFlight) {
+    if (!self.launchWindowController.window.isVisible || !self.previewDeviceSessions.count || self.launchPreviewRequestInFlight) {
         return;
     }
 
-    NSArray<PVClientSession *> *sessionsNeedingPreview = [self.deviceSessions pv_inspect_filter:^BOOL(PVClientSession *session) {
+    NSArray<PVClientSession *> *sessionsNeedingPreview = [self.previewDeviceSessions pv_inspect_filter:^BOOL(PVClientSession *session) {
         return session.state == PVClientSessionStateReady &&
                session.identifier.length > 0 &&
                self.devicePreviewImagesByEndpointID[session.identifier] == nil;
@@ -522,6 +548,9 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
         BOOL didUpdate = NO;
         for (PVDetailInspectableApp *app in apps) {
             NSString *identifier = app.session.identifier;
+            if (identifier.length) {
+                self.inspectableAppsByEndpointID[identifier] = app;
+            }
             NSImage *screenshot = app.appInfo.screenshot;
             if (!identifier.length || !screenshot || self.devicePreviewImagesByEndpointID[identifier]) {
                 continue;
@@ -531,8 +560,10 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
         }
 
         if (didUpdate) {
-            [self.launchWindowController reloadWithSessions:self.deviceSessions
-                                              previewImages:self.devicePreviewImagesByEndpointID.copy];
+            [self.launchWindowController reloadWithPreviewSessions:self.previewDeviceSessions
+                                                       LANSessions:self.LANDeviceSessions
+                                                     previewImages:self.devicePreviewImagesByEndpointID.copy
+                                    connectedLANEndpointIdentifier:self.connectedLANEndpointIdentifier];
         }
         [self scheduleLaunchPreviewRetryIfNeeded];
     } error:^(NSError * _Nullable error) {
@@ -547,7 +578,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     if (!self.launchWindowController.window.isVisible || self.launchPreviewRetryCount >= 5) {
         return;
     }
-    BOOL stillNeedsPreview = [self.deviceSessions pv_inspect_any:^BOOL(PVClientSession *session) {
+    BOOL stillNeedsPreview = [self.previewDeviceSessions pv_inspect_any:^BOOL(PVClientSession *session) {
         return session.state == PVClientSessionStateReady &&
                session.identifier.length > 0 &&
                self.devicePreviewImagesByEndpointID[session.identifier] == nil;
@@ -582,11 +613,11 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     if (self.isEnteringSession) {
         return;
     }
-    if (row < 0 || row >= (NSInteger)self.deviceSessions.count) {
+    if (row < 0 || row >= (NSInteger)self.previewDeviceSessions.count) {
         return;
     }
 
-    PVClientSession *session = self.deviceSessions[(NSUInteger)row];
+    PVClientSession *session = self.previewDeviceSessions[(NSUInteger)row];
     if (session.state == PVClientSessionStateBlocked) {
         [self showMessage:@"This app is already connected through USB. Disconnect USB before using LAN."];
         return;
@@ -600,9 +631,36 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     [self enterDetailWithSession:session];
 }
 
+- (void)openLANDeviceAtRow:(NSInteger)row {
+    if (self.isEnteringSession || row < 0 || row >= (NSInteger)self.LANDeviceSessions.count) {
+        return;
+    }
+    PVClientSession *session = self.LANDeviceSessions[(NSUInteger)row];
+    if (session.state == PVClientSessionStateBlocked) {
+        [self showMessage:@"This app is already connected through USB."];
+        return;
+    }
+    if (session.state != PVClientSessionStateReady) {
+        [self showMessage:@"This LAN device is not available."];
+        return;
+    }
+
+    self.connectedLANEndpointIdentifier = session.identifier;
+    [PickViewClient.sharedClient connectToLANEndpointIdentifier:session.identifier];
+    [self reloadDeviceSessionsWithClient:PickViewClient.sharedClient];
+    self.isEnteringSession = YES;
+    [self enterDetailWithSession:session];
+}
+
 - (void)enterDetailWithSession:(PVClientSession *)session {
+    PVDetailInspectableApp *cachedApp = self.inspectableAppsByEndpointID[session.identifier];
+    if (cachedApp.session == session) {
+        [self enterDetailWithInspectableApp:cachedApp];
+        return;
+    }
+
     @weakify(self);
-    [[[[PVDetailAppsManager sharedInstance] fetchAppInfosWithImage:YES localInfos:nil] deliverOnMainThread] subscribeNext:^(NSArray<PVDetailInspectableApp *> *apps) {
+    [[[[PVDetailAppsManager sharedInstance] fetchAppInfosWithImage:NO localInfos:nil] deliverOnMainThread] subscribeNext:^(NSArray<PVDetailInspectableApp *> *apps) {
         @strongify(self);
         PVDetailInspectableApp *targetApp = [apps pv_inspect_firstFiltered:^BOOL(PVDetailInspectableApp *app) {
             return app.session == session;
@@ -612,41 +670,52 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
             [self showMessage:@"This session is no longer available. Please rescan and try again."];
             return;
         }
-        
-        [PVDetailPerformanceReporter.sharedInstance willStartReload];
-        [[targetApp fetchHierarchyData] subscribeNext:^(PVHierarchyInfo *info) {
-            @strongify(self);
-            self.isEnteringSession = NO;
-            if (!info) {
-                [self showMessage:@"Failed to load view hierarchy."];
-                return;
-            }
-            
-            [PVDetailAppsManager sharedInstance].inspectingApp = targetApp;
-            [[PVDetailStaticHierarchyDataSource sharedInstance] reloadWithHierarchyInfo:info keepState:NO];
-            [PVDetailPerformanceReporter.sharedInstance didFetchHierarchy];
-            [[PVDetailNavigationManager sharedInstance] showStaticWorkspace];
-            [self.launchWindowController close];
-            [self.window orderOut:nil];
-            
-        } error:^(NSError * _Nullable error) {
-            @strongify(self);
-            self.isEnteringSession = NO;
-            [[NSAlert alertWithError:error ?: PVInspectErr_Inner] beginSheetModalForWindow:self.launchWindowController.window completionHandler:nil];
-        }];
+        self.inspectableAppsByEndpointID[session.identifier] = targetApp;
+        [self enterDetailWithInspectableApp:targetApp];
+    } error:^(NSError * _Nullable error) {
+        @strongify(self);
+        self.isEnteringSession = NO;
+        [[NSAlert alertWithError:error ?: PVInspectErr_Inner] beginSheetModalForWindow:self.launchWindowController.window completionHandler:nil];
+    }];
+}
+
+- (void)enterDetailWithInspectableApp:(PVDetailInspectableApp *)targetApp {
+    [PVDetailPerformanceReporter.sharedInstance willStartReload];
+    @weakify(self);
+    [[targetApp fetchHierarchyData] subscribeNext:^(PVHierarchyInfo *info) {
+        @strongify(self);
+        self.isEnteringSession = NO;
+        if (!info) {
+            [self showMessage:@"Failed to load view hierarchy."];
+            return;
+        }
+
+        [PVDetailAppsManager sharedInstance].inspectingApp = targetApp;
+        [[PVDetailStaticHierarchyDataSource sharedInstance] reloadWithHierarchyInfo:info keepState:NO];
+        [PVDetailPerformanceReporter.sharedInstance didFetchHierarchy];
+        [[PVDetailNavigationManager sharedInstance] showStaticWorkspace];
+        [self.launchWindowController close];
+        [self.window orderOut:nil];
+
+    } error:^(NSError * _Nullable error) {
+        @strongify(self);
+        self.isEnteringSession = NO;
+        [[NSAlert alertWithError:error ?: PVInspectErr_Inner] beginSheetModalForWindow:self.launchWindowController.window completionHandler:nil];
     }];
 }
 
 - (void)showMessage:(NSString *)message {
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = message ?: @"";
-    [alert beginSheetModalForWindow:self.window completionHandler:nil];
+    NSWindow *hostWindow = self.launchWindowController.window.isVisible ? self.launchWindowController.window : self.window;
+    [alert beginSheetModalForWindow:hostWindow completionHandler:nil];
 }
 
 - (void)reloadLANStateWithClient:(PickViewClient *)client {
     BOOL stillHasConnectedEndpoint = NO;
     for (PVClientSession *session in client.sessionManager.lanSessions) {
-        if ([session.identifier isEqualToString:self.connectedLANEndpointIdentifier]) {
+        if (session.state == PVClientSessionStateReady &&
+            [session.identifier isEqualToString:self.connectedLANEndpointIdentifier]) {
             stillHasConnectedEndpoint = YES;
             break;
         }
@@ -976,10 +1045,13 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 }
 
 - (void)pickViewClient:(PickViewClient *)client didConnectEndpoint:(id<PVEndpointProtocol>)endpoint {
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"Connected: %@", endpoint.displayName];
+    BOOL isUnconfirmedLAN = [endpoint isKindOfClass:PVLANEndpoint.class] &&
+                            ![endpoint.identifier isEqualToString:self.connectedLANEndpointIdentifier];
+    self.statusLabel.stringValue = isUnconfirmedLAN
+        ? [NSString stringWithFormat:@"LAN device ready: %@", endpoint.displayName]
+        : [NSString stringWithFormat:@"Connected: %@", endpoint.displayName];
     [self reloadDeviceSessionsWithClient:client];
     if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
-        self.connectedLANEndpointIdentifier = endpoint.identifier;
         [self updateLANConnectionControls];
         [self reloadLANStateWithClient:client];
     }

@@ -162,17 +162,19 @@
     info.swiftEnabledInPickViewServer = 0;
     if (needImages) {
         info.appIcon = NSApp.applicationIconImage;
-        info.screenshot = [self screenshotForKeyWindow];
+        info.screenshot = [self screenshotForPreviewWindow];
     }
     return info;
 }
 
-+ (NSImage *)screenshotForKeyWindow {
-    NSWindow *window = NSApplication.sharedApplication.keyWindow ?: NSApplication.sharedApplication.mainWindow;
++ (NSImage *)screenshotForPreviewWindow {
+    NSWindow *window = [self previewWindow];
     NSView *view = window.contentView;
     if (!view || CGRectIsEmpty(view.bounds)) {
         return nil;
     }
+    [view layoutSubtreeIfNeeded];
+    [view displayIfNeeded];
     NSBitmapImageRep *rep = [view bitmapImageRepForCachingDisplayInRect:view.bounds];
     if (!rep) {
         return nil;
@@ -181,6 +183,37 @@
     NSImage *image = [[NSImage alloc] initWithSize:view.bounds.size];
     [image addRepresentation:rep];
     return image;
+}
+
++ (NSWindow *)previewWindow {
+    NSApplication *application = NSApplication.sharedApplication;
+    for (NSWindow *window in @[application.keyWindow ?: NSNull.null, application.mainWindow ?: NSNull.null]) {
+        if ([window isKindOfClass:NSWindow.class] && [self canCaptureWindow:window requireVisible:NO]) {
+            return window;
+        }
+    }
+
+    for (NSWindow *window in application.orderedWindows) {
+        if ([self canCaptureWindow:window requireVisible:YES]) {
+            return window;
+        }
+    }
+    for (NSWindow *window in application.windows) {
+        if ([self canCaptureWindow:window requireVisible:NO]) {
+            return window;
+        }
+    }
+    return nil;
+}
+
++ (BOOL)canCaptureWindow:(NSWindow *)window requireVisible:(BOOL)requireVisible {
+    if (!window.contentView || CGRectIsEmpty(window.contentView.bounds)) {
+        return NO;
+    }
+    if (requireVisible && (!window.isVisible || window.isMiniaturized || window.alphaValue <= 0)) {
+        return NO;
+    }
+    return YES;
 }
 
 #endif

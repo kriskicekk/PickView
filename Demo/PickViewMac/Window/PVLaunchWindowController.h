@@ -14,9 +14,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PVLaunchWindowController : NSWindowController
 
 @property (nonatomic, copy, nullable) void (^selectionHandler)(NSInteger row);
+@property (nonatomic, copy, nullable) void (^LANSelectionHandler)(NSInteger row);
 
-- (void)reloadWithSessions:(NSArray<PVClientSession *> *)sessions
-             previewImages:(NSDictionary<NSString *, NSImage *> *)previewImages;
+- (void)reloadWithPreviewSessions:(NSArray<PVClientSession *> *)previewSessions
+                       LANSessions:(NSArray<PVClientSession *> *)LANSessions
+                     previewImages:(NSDictionary<NSString *, NSImage *> *)previewImages
+    connectedLANEndpointIdentifier:(nullable NSString *)connectedLANEndpointIdentifier;
 
 @end
 

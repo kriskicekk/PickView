@@ -79,7 +79,7 @@
         return @"USB Connected";
     }
     if (isConnected) {
-        return @"Connected";
+        return @"Open";
     }
 
     switch (state) {
@@ -98,9 +98,6 @@
 }
 
 + (BOOL)buttonEnabledWithSessionState:(PVClientSessionState)state isConnected:(BOOL)isConnected {
-    if (isConnected) {
-        return NO;
-    }
     return state == PVClientSessionStateReady;
 }
 

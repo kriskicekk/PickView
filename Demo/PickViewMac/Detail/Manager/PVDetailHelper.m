@@ -7,6 +7,7 @@
 
 #import "PVDetailPrefix.h"
 #import "PVDetailHelper.h"
+#import "PVAppInfo.h"
 #import "NSString+Score.h"
 
 const CGFloat HierarchyMinWidth = 200;
@@ -73,6 +74,21 @@ const CGFloat ZoomSliderMaxValue = 2.8;
         isEnglish = ![language hasPrefix:@"zh"];
     });
     return isEnglish;
+}
+
++ (BOOL)appInfoLooksLikeMacTarget:(PVAppInfo *)appInfo {
+    if (!appInfo) {
+        return NO;
+    }
+    if (appInfo.deviceType == PVAppInfoDeviceMac) {
+        return YES;
+    }
+
+    NSString *osDescription = appInfo.osDescription.lowercaseString ?: @"";
+    NSString *deviceDescription = appInfo.deviceDescription.lowercaseString ?: @"";
+    return [osDescription containsString:@"macos"] ||
+        [osDescription containsString:@"os x"] ||
+        [deviceDescription containsString:@"mac"];
 }
 
 + (NSColor *)accentColor {

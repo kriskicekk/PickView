@@ -23,6 +23,10 @@
 #import "PVEventHandler.h"
 #import "PVHierarchyInfo.h"
 #import "PVInspectionDefines.h"
+#import "PVIvarTrace.h"
+#import "PVMacAttrGroupsMaker.h"
+#import "PVMacAttributeAccessors.h"
+#import "NSObject+PVInspect.h"
 #import "PVObject.h"
 #import "PVStaticAsyncUpdateTask.h"
 #import "PVTuple.h"
@@ -34,10 +38,15 @@
 #if !TARGET_OS_IPHONE && TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
+
+static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
 #endif
 
 @interface PVMacHierarchyProvider ()
 @property (nonatomic, strong) NSMapTable<NSNumber *, id> *objectRegistry;
+#if !TARGET_OS_IPHONE && TARGET_OS_OSX
+@property (nonatomic, strong) NSMapTable<CALayer *, NSView *> *hostViewsByLayer;
+#endif
 @end
 
 @implementation PVMacHierarchyProvider
@@ -46,6 +55,9 @@
     self = [super init];
     if (self) {
         _objectRegistry = [NSMapTable strongToWeakObjectsMapTable];
+#if !TARGET_OS_IPHONE && TARGET_OS_OSX
+        _hostViewsByLayer = [NSMapTable weakToWeakObjectsMapTable];
+#endif
     }
     return self;
 }
@@ -434,8 +446,14 @@
         return nil;
     }
 
+    [self reloadIvarTracesForWindow:window];
+
     PVHierarchyInfo *info = [[PVHierarchyInfo alloc] init];
     info.appInfo = [PVAppInfoCollector currentInfoWithImages:NO localIdentifiers:@[]];
+    NSSize contentSize = window.pv_inspect_bounds.size;
+    info.appInfo.screenWidth = contentSize.width;
+    info.appInfo.screenHeight = contentSize.height;
+    info.appInfo.screenScale = window.screen.backingScaleFactor ?: 1;
     info.serverVersion = info.appInfo.serverVersion;
     info.windowInfo = [self windowInfoForWindow:window];
     info.rootItems = @[[self displayItemForWindow:window]];
@@ -491,13 +509,14 @@
 
         if ([object isKindOfClass:NSWindow.class]) {
             NSWindow *window = object;
+            NSView *rootView = window.pv_inspect_rootView;
             detail.frame = [self wireFrameForWindow:window];
-            detail.bounds = window.contentView.bounds;
+            detail.bounds = window.pv_inspect_bounds;
             detail.hidden = !window.isVisible;
             detail.alpha = window.alphaValue;
             detail.attributesGroupList = [self attributeGroupsForWindow:window];
             if (needsGroupImage) {
-                detail.groupImageData = [self imageDataForView:window.contentView includeSubviews:YES lowQuality:lowImageQuality];
+                detail.groupImageData = [self imageDataForView:rootView includeSubviews:YES lowQuality:lowImageQuality];
                 detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
             }
         } else if ([object isKindOfClass:NSView.class]) {
@@ -514,6 +533,22 @@
             }
             if (needsGroupImage) {
                 detail.groupImageData = [self imageDataForView:view includeSubviews:YES lowQuality:lowImageQuality];
+                detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
+            }
+        } else if ([object isKindOfClass:CALayer.class]) {
+            CALayer *layer = object;
+            detail.frame = [self wireFrameForLayer:layer];
+            detail.bounds = layer.bounds;
+            detail.hidden = layer.isHidden;
+            detail.alpha = layer.opacity;
+            detail.attributesGroupList = [self attributeGroupsForLayer:layer];
+            [self applyCustomInfoToDetail:detail object:layer];
+            if (needsSoloImage) {
+                detail.soloImageData = [self imageDataForLayer:layer includeSublayers:NO lowQuality:lowImageQuality];
+                detail.soloScreenshot = detail.soloImageData.length ? [[NSImage alloc] initWithData:detail.soloImageData] : nil;
+            }
+            if (needsGroupImage) {
+                detail.groupImageData = [self imageDataForLayer:layer includeSublayers:YES lowQuality:lowImageQuality];
                 detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
             }
         }
@@ -547,9 +582,10 @@
 
             if ([object isKindOfClass:NSWindow.class]) {
                 NSWindow *window = object;
+                NSView *rootView = window.pv_inspect_rootView;
                 detail.displayItemID = [self identifierForObject:window prefix:@"mac-window"];
                 detail.frame = [self wireFrameForWindow:window];
-                detail.bounds = window.contentView.bounds;
+                detail.bounds = window.pv_inspect_bounds;
                 detail.hidden = !window.isVisible;
                 detail.alpha = window.alphaValue;
                 detail.frameValue = task.needBasisVisualInfo ? [NSValue valueWithRect:detail.frame] : nil;
@@ -561,11 +597,11 @@
                     [attrGroupsSyncedOids addObject:@(task.oid)];
                 }
                 if (task.taskType == PVStaticAsyncUpdateTaskTypeGroupScreenshot) {
-                    detail.groupImageData = [self imageDataForView:window.contentView includeSubviews:YES lowQuality:lowImageQuality];
+                    detail.groupImageData = [self imageDataForView:rootView includeSubviews:YES lowQuality:lowImageQuality];
                     detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
                 }
                 if (task.needSubitems) {
-                    detail.subitems = window.contentView ? @[[self displayItemForView:window.contentView]] : @[];
+                    detail.subitems = rootView ? @[[self displayItemForView:rootView]] : @[];
                 }
             } else if ([object isKindOfClass:NSView.class]) {
                 NSView *view = object;
@@ -591,11 +627,33 @@
                     detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
                 }
                 if (task.needSubitems) {
-                    NSMutableArray<PVDisplayItem *> *subitems = [NSMutableArray arrayWithCapacity:view.subviews.count];
-                    for (NSView *subview in view.subviews) {
-                        [subitems addObject:[self displayItemForView:subview]];
-                    }
-                    detail.subitems = subitems.copy;
+                    detail.subitems = [self subitemsForView:view];
+                }
+            } else if ([object isKindOfClass:CALayer.class]) {
+                CALayer *layer = object;
+                detail.displayItemID = [self identifierForObject:layer prefix:@"mac-layer"];
+                detail.frame = [self wireFrameForLayer:layer];
+                detail.bounds = layer.bounds;
+                detail.hidden = layer.isHidden;
+                detail.alpha = layer.opacity;
+                detail.frameValue = task.needBasisVisualInfo ? [NSValue valueWithRect:detail.frame] : nil;
+                detail.boundsValue = task.needBasisVisualInfo ? [NSValue valueWithRect:detail.bounds] : nil;
+                detail.hiddenValue = task.needBasisVisualInfo ? @(detail.hidden) : nil;
+                detail.alphaValue = task.needBasisVisualInfo ? @(detail.alpha) : nil;
+                if ([self shouldMakeAttributesFromTask:task syncedOids:attrGroupsSyncedOids]) {
+                    detail.attributesGroupList = [self attributeGroupsForLayer:layer];
+                    [self applyCustomInfoToDetail:detail object:layer];
+                    [attrGroupsSyncedOids addObject:@(task.oid)];
+                }
+                if (task.taskType == PVStaticAsyncUpdateTaskTypeSoloScreenshot) {
+                    detail.soloImageData = [self imageDataForLayer:layer includeSublayers:NO lowQuality:lowImageQuality];
+                    detail.soloScreenshot = detail.soloImageData.length ? [[NSImage alloc] initWithData:detail.soloImageData] : nil;
+                } else if (task.taskType == PVStaticAsyncUpdateTaskTypeGroupScreenshot) {
+                    detail.groupImageData = [self imageDataForLayer:layer includeSublayers:YES lowQuality:lowImageQuality];
+                    detail.groupScreenshot = detail.groupImageData.length ? [[NSImage alloc] initWithData:detail.groupImageData] : nil;
+                }
+                if (task.needSubitems) {
+                    detail.subitems = [self subitemsForStandaloneLayer:layer];
                 }
             }
             [details addObject:detail];
@@ -785,7 +843,7 @@
         detail.attributesGroupList = [self attributeGroupsForWindow:window];
     } else if ([object isKindOfClass:NSView.class]) {
         NSView *view = object;
-        detail.frameValue = [NSValue valueWithRect:view.frame];
+        detail.frameValue = [NSValue valueWithRect:[self wireFrameForView:view]];
         detail.boundsValue = [NSValue valueWithRect:view.bounds];
         detail.hiddenValue = @(view.isHidden);
         detail.alphaValue = @(view.alphaValue);
@@ -793,11 +851,22 @@
         [self applyCustomInfoToDetail:detail object:view];
     } else if ([object isKindOfClass:CALayer.class]) {
         CALayer *layer = object;
-        detail.frameValue = [NSValue valueWithRect:layer.frame];
-        detail.boundsValue = [NSValue valueWithRect:layer.bounds];
-        detail.hiddenValue = @(layer.isHidden);
-        detail.alphaValue = @(layer.opacity);
-        detail.attributesGroupList = [self attributeGroupsForObject:layer layer:layer frame:layer.frame bounds:layer.bounds hidden:layer.isHidden alpha:layer.opacity interaction:YES tag:0 relationLines:@[]];
+        NSView *hostView = [self hostViewForLayer:layer];
+        if (hostView) {
+            detail.frameValue = [NSValue valueWithRect:[self wireFrameForView:hostView]];
+            detail.boundsValue = [NSValue valueWithRect:hostView.bounds];
+            detail.hiddenValue = @(hostView.isHidden);
+            detail.alphaValue = @(hostView.alphaValue);
+            detail.attributesGroupList = [self attributeGroupsForView:hostView];
+            [self applyCustomInfoToDetail:detail object:hostView];
+        } else {
+            detail.frameValue = [NSValue valueWithRect:[self wireFrameForLayer:layer]];
+            detail.boundsValue = [NSValue valueWithRect:layer.bounds];
+            detail.hiddenValue = @(layer.isHidden);
+            detail.alphaValue = @(layer.opacity);
+            detail.attributesGroupList = [self attributeGroupsForLayer:layer];
+            [self applyCustomInfoToDetail:detail object:layer];
+        }
     }
     return detail;
 }
@@ -822,16 +891,7 @@
         return [self attributeGroupsForView:object];
     }
     if ([object isKindOfClass:CALayer.class]) {
-        CALayer *layer = object;
-        return [self attributeGroupsForObject:layer
-                                        layer:layer
-                                        frame:layer.frame
-                                       bounds:layer.bounds
-                                       hidden:layer.isHidden
-                                        alpha:layer.opacity
-                                  interaction:YES
-                                          tag:0
-                                relationLines:@[]];
+        return [self attributeGroupsForLayer:object];
     }
     if (error) {
         *error = PVInspectErr_ObjNotFound;
@@ -985,9 +1045,14 @@
         if ((unsigned long)(uintptr_t)window == oid) {
             return window;
         }
-        NSView *view = [self viewInView:window.contentView matchingOid:oid];
+        NSView *rootView = window.pv_inspect_rootView;
+        NSView *view = [self viewInView:rootView matchingOid:oid];
         if (view) {
             return view;
+        }
+        CALayer *layer = [self layerInLayer:rootView.layer matchingOid:oid];
+        if (layer) {
+            return layer;
         }
     }
     return nil;
@@ -1006,13 +1071,34 @@
     return nil;
 }
 
+- (CALayer *)layerInLayer:(CALayer *)layer matchingOid:(unsigned long)oid {
+    if (!layer) {
+        return nil;
+    }
+    if ((unsigned long)(uintptr_t)layer == oid) {
+        return layer;
+    }
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        CALayer *matchedLayer = [self layerInLayer:sublayer matchingOid:oid];
+        if (matchedLayer) {
+            return matchedLayer;
+        }
+    }
+    return nil;
+}
+
 - (NSView *)hostViewForLayer:(CALayer *)layer {
     if (!layer) {
         return nil;
     }
+    NSView *cachedView = [self.hostViewsByLayer objectForKey:layer];
+    if (cachedView) {
+        return cachedView;
+    }
     for (NSWindow *window in NSApplication.sharedApplication.windows.copy ?: @[]) {
-        NSView *view = [self hostViewForLayer:layer inView:window.contentView];
+        NSView *view = [self hostViewForLayer:layer inView:window.pv_inspect_rootView];
         if (view) {
+            [self.hostViewsByLayer setObject:view forKey:layer];
             return view;
         }
     }
@@ -1023,7 +1109,7 @@
     if (!view) {
         return nil;
     }
-    if (view.layer == layer) {
+    if (view.layer == layer && layer.delegate == (id<CALayerDelegate>)view) {
         return view;
     }
     for (NSView *subview in view.subviews) {
@@ -1041,15 +1127,17 @@
     }
 
     CGRect bounds = CGRectMake(0, 0, window.frame.size.width, window.frame.size.height);
-    return [self attributeGroupsForObject:window
-                                    layer:nil
-                                    frame:window.frame
-                                   bounds:bounds
-                                   hidden:!window.isVisible
-                                    alpha:window.alphaValue
-                              interaction:YES
-                                      tag:0
-                            relationLines:[self relationStringsForWindow:window]];
+    NSMutableArray<PVAttributesGroup *> *groups = [[self attributeGroupsForObject:window
+                                                                            layer:nil
+                                                                            frame:window.frame
+                                                                           bounds:bounds
+                                                                           hidden:!window.isVisible
+                                                                            alpha:window.alphaValue
+                                                                      interaction:YES
+                                                                              tag:0
+                                                                    relationLines:[self relationStringsForWindow:window]] mutableCopy];
+    [groups addObjectsFromArray:[PVMacAttrGroupsMaker attrGroupsForWindow:window]];
+    return groups.copy;
 }
 
 - (NSArray<PVAttributesGroup *> *)attributeGroupsForView:(NSView *)view {
@@ -1057,8 +1145,9 @@
         return @[];
     }
 
+    CALayer *ownedLayer = view.layer.delegate == (id<CALayerDelegate>)view ? view.layer : nil;
     NSMutableArray<PVAttributesGroup *> *groups = [[self attributeGroupsForObject:view
-                                                                             layer:view.layer
+                                                                             layer:ownedLayer
                                                                              frame:view.frame
                                                                             bounds:view.bounds
                                                                             hidden:view.isHidden
@@ -1067,7 +1156,23 @@
                                                                                tag:0
                                                                      relationLines:[self relationStringsForView:view]] mutableCopy];
     [groups addObjectsFromArray:[self appKitAttributeGroupsForView:view]];
+    [groups addObjectsFromArray:[PVMacAttrGroupsMaker attrGroupsForView:view]];
     return groups.copy;
+}
+
+- (NSArray<PVAttributesGroup *> *)attributeGroupsForLayer:(CALayer *)layer {
+    if (!layer) {
+        return @[];
+    }
+    return [self attributeGroupsForObject:layer
+                                    layer:layer
+                                    frame:layer.frame
+                                   bounds:layer.bounds
+                                   hidden:layer.isHidden
+                                    alpha:layer.opacity
+                              interaction:YES
+                                      tag:0
+                            relationLines:[self relationStringsForLayer:layer]];
 }
 
 - (NSArray<PVAttributesGroup *> *)appKitAttributeGroupsForView:(NSView *)view {
@@ -1096,72 +1201,6 @@
         [self attributeWithIdentifier:PVAttr_AutoLayout_Resistance_Ver type:PVAttrTypeFloat value:@([view contentCompressionResistancePriorityForOrientation:NSLayoutConstraintOrientationVertical]) targetOid:oid setter:@"pv_setVerticalResistancePriority:"]
     ]]];
     [groups addObject:[self groupWithIdentifier:PVAttrGroup_AutoLayout sections:autoLayoutSections.copy]];
-
-    if ([view isKindOfClass:NSControl.class]) {
-        NSControl *control = (NSControl *)view;
-        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIControl sections:@[
-            [self sectionWithIdentifier:PVAttrSec_UIControl_EnabledSelected attributes:@[
-                [self attributeWithIdentifier:PVAttr_UIControl_EnabledSelected_Enabled type:PVAttrTypeBOOL value:@(control.isEnabled) targetOid:oid setter:@"setEnabled:"]
-            ]]
-        ]]];
-    }
-
-    if ([view isKindOfClass:NSTextField.class]) {
-        NSTextField *textField = (NSTextField *)view;
-        NSMutableArray<PVAttributesSection *> *sections = [NSMutableArray arrayWithArray:@[
-            [self sectionWithIdentifier:PVAttrSec_UILabel_Text attributes:@[
-                [self attributeWithIdentifier:PVAttr_UILabel_Text_Text type:PVAttrTypeNSString value:textField.stringValue ?: @"" targetOid:oid setter:@"setStringValue:"]
-            ]],
-            [self sectionWithIdentifier:PVAttrSec_UILabel_Alignment attributes:@[
-                [self attributeWithIdentifier:PVAttr_UILabel_Alignment_Alignment type:PVAttrTypeEnumLong value:@(textField.alignment) targetOid:oid setter:@"setAlignment:"]
-            ]]
-        ]];
-        if (textField.font) {
-            [sections addObject:[self sectionWithIdentifier:PVAttrSec_UILabel_Font attributes:@[
-                [self attributeWithIdentifier:PVAttr_UILabel_Font_Name type:PVAttrTypeNSString value:textField.font.fontName ?: @""],
-                [self attributeWithIdentifier:PVAttr_UILabel_Font_Size type:PVAttrTypeDouble value:@(textField.font.pointSize) targetOid:oid setter:@"pv_setFontSize:"]
-            ]]];
-        }
-        if (textField.textColor) {
-            [sections addObject:[self sectionWithIdentifier:PVAttrSec_UILabel_TextColor attributes:@[
-                [self attributeWithIdentifier:PVAttr_UILabel_TextColor_Color type:PVAttrTypeUIColor value:textField.textColor.pv_inspect_rgbaComponents targetOid:oid setter:@"setTextColor:"]
-            ]]];
-        }
-        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UILabel sections:sections.copy]];
-    } else if ([view isKindOfClass:NSButton.class]) {
-        NSButton *button = (NSButton *)view;
-        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UILabel sections:@[
-            [self sectionWithIdentifier:PVAttrSec_UILabel_Text attributes:@[
-                [self attributeWithIdentifier:PVAttr_UILabel_Text_Text type:PVAttrTypeNSString value:button.title ?: @"" targetOid:oid setter:@"setTitle:"]
-            ]]
-        ]]];
-    }
-
-    if ([view isKindOfClass:NSImageView.class] && ((NSImageView *)view).image) {
-        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIImageView sections:@[
-            [self sectionWithIdentifier:PVAttrSec_UIImageView_Open attributes:@[
-                [self attributeWithIdentifier:PVAttr_UIImageView_Open_Open type:PVAttrTypeCustomObj value:@(oid)]
-            ]]
-        ]]];
-    }
-
-    if ([view isKindOfClass:NSScrollView.class]) {
-        NSScrollView *scrollView = (NSScrollView *)view;
-        NSPoint offset = scrollView.contentView.bounds.origin;
-        NSSize contentSize = scrollView.documentView ? scrollView.documentView.frame.size : NSZeroSize;
-        [groups addObject:[self groupWithIdentifier:PVAttrGroup_UIScrollView sections:@[
-            [self sectionWithIdentifier:PVAttrSec_UIScrollView_Offset attributes:@[
-                [self attributeWithIdentifier:PVAttr_UIScrollView_Offset_Offset type:PVAttrTypeCGPoint value:[NSValue valueWithPoint:offset] targetOid:oid setter:@"pv_setContentOffset:"]
-            ]],
-            [self sectionWithIdentifier:PVAttrSec_UIScrollView_ContentSize attributes:@[
-                [self attributeWithIdentifier:PVAttr_UIScrollView_ContentSize_Size type:PVAttrTypeCGSize value:[NSValue valueWithSize:contentSize]]
-            ]],
-            [self sectionWithIdentifier:PVAttrSec_UIScrollView_ShowsIndicator attributes:@[
-                [self attributeWithIdentifier:PVAttr_UIScrollView_ShowsIndicator_Hor type:PVAttrTypeBOOL value:@(scrollView.hasHorizontalScroller) targetOid:oid setter:@"setHasHorizontalScroller:"],
-                [self attributeWithIdentifier:PVAttr_UIScrollView_ShowsIndicator_Ver type:PVAttrTypeBOOL value:@(scrollView.hasVerticalScroller) targetOid:oid setter:@"setHasVerticalScroller:"]
-            ]]
-        ]]];
-    }
     return groups.copy;
 }
 
@@ -1228,6 +1267,7 @@
     }
     [groups addObject:[self groupWithIdentifier:PVAttrGroup_Layout sections:layoutSections.copy]];
 
+    BOOL objectIsLayer = [object isKindOfClass:CALayer.class];
     NSMutableArray<PVAttributesSection *> *viewLayerSections = [NSMutableArray arrayWithObject:
         [self sectionWithIdentifier:PVAttrSec_ViewLayer_Visibility attributes:@[
             [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Hidden
@@ -1236,10 +1276,10 @@
                                 targetOid:objectOid
                                    setter:@"setHidden:"],
             [self attributeWithIdentifier:PVAttr_ViewLayer_Visibility_Opacity
-                                     type:PVAttrTypeDouble
+                                     type:objectIsLayer ? PVAttrTypeFloat : PVAttrTypeDouble
                                     value:@(alpha)
                                 targetOid:objectOid
-                                   setter:@"setAlphaValue:"]
+                                   setter:objectIsLayer ? @"setOpacity:" : @"setAlphaValue:"]
         ]]
     ];
     if (layer) {
@@ -1337,14 +1377,32 @@
     return relations.copy;
 }
 
+- (NSArray<NSString *> *)relationStringsForLayer:(CALayer *)layer {
+    NSMutableArray<NSString *> *relations = [NSMutableArray array];
+    [relations addObject:[NSString stringWithFormat:@"self: (%@ *) %p", NSStringFromClass(layer.class), layer]];
+    if (layer.superlayer) {
+        [relations addObject:[NSString stringWithFormat:@"superlayer: (%@ *) %p", NSStringFromClass(layer.superlayer.class), layer.superlayer]];
+    }
+    NSView *hostView = [self hostViewForLayer:layer];
+    if (hostView) {
+        [relations addObject:[NSString stringWithFormat:@"hostView: (%@ *) %p", NSStringFromClass(hostView.class), hostView]];
+    }
+    return relations.copy;
+}
+
 - (id)objectForDisplayItemID:(NSString *)displayItemID {
     for (NSWindow *window in NSApplication.sharedApplication.windows.copy ?: @[]) {
         if ([[self identifierForObject:window prefix:@"mac-window"] isEqualToString:displayItemID]) {
             return window;
         }
-        NSView *matchedView = [self viewInView:window.contentView matchingDisplayItemID:displayItemID];
+        NSView *rootView = window.pv_inspect_rootView;
+        NSView *matchedView = [self viewInView:rootView matchingDisplayItemID:displayItemID];
         if (matchedView) {
             return matchedView;
+        }
+        CALayer *matchedLayer = [self layerInLayer:rootView.layer matchingDisplayItemID:displayItemID];
+        if (matchedLayer) {
+            return matchedLayer;
         }
     }
     return nil;
@@ -1366,8 +1424,25 @@
     return nil;
 }
 
+- (CALayer *)layerInLayer:(CALayer *)layer matchingDisplayItemID:(NSString *)displayItemID {
+    if (!layer) {
+        return nil;
+    }
+    BOOL representsView = [self hostViewForLayer:layer] != nil;
+    if (!representsView && [[self identifierForObject:layer prefix:@"mac-layer"] isEqualToString:displayItemID]) {
+        return layer;
+    }
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        CALayer *matchedLayer = [self layerInLayer:sublayer matchingDisplayItemID:displayItemID];
+        if (matchedLayer) {
+            return matchedLayer;
+        }
+    }
+    return nil;
+}
+
 - (CGRect)wireFrameForWindow:(NSWindow *)window {
-    NSSize size = window.contentView.bounds.size;
+    NSSize size = window.pv_inspect_bounds.size;
     return CGRectMake(0, 0, size.width, size.height);
 }
 
@@ -1390,19 +1465,71 @@
     return frame;
 }
 
+- (CGRect)wireFrameForLayer:(CALayer *)layer {
+    CALayer *superlayer = layer.superlayer;
+    if (!superlayer) {
+        return CGRectMake(0, 0, layer.bounds.size.width, layer.bounds.size.height);
+    }
+    CGRect frame = layer.frame;
+    CGRect parentBounds = superlayer.bounds;
+    frame.origin.x -= CGRectGetMinX(parentBounds);
+    if (superlayer.geometryFlipped) {
+        frame.origin.y -= CGRectGetMinY(parentBounds);
+    } else {
+        frame.origin.y = CGRectGetMaxY(parentBounds) - CGRectGetMaxY(frame);
+    }
+    return frame;
+}
+
 - (NSData *)imageDataForView:(NSView *)view includeSubviews:(BOOL)includeSubviews lowQuality:(BOOL)lowQuality {
     if (!view || view.isHidden || CGRectIsEmpty(view.bounds) || ![self canCreateImageContextWithSize:view.bounds.size]) {
         return nil;
     }
     NSArray<NSView *> *hiddenSubviews = includeSubviews ? @[] : [self hideVisibleSubviewsOfView:view];
+    NSArray<CALayer *> *hiddenSublayers = includeSubviews ? @[] : [self hideStandaloneVisibleSublayersOfLayer:view.layer];
     NSBitmapImageRep *rep = [view bitmapImageRepForCachingDisplayInRect:view.bounds];
     if (!rep) {
+        [self restoreHiddenSublayers:hiddenSublayers];
         [self restoreHiddenSubviews:hiddenSubviews];
         return nil;
     }
 
     [view cacheDisplayInRect:view.bounds toBitmapImageRep:rep];
+    [self restoreHiddenSublayers:hiddenSublayers];
     [self restoreHiddenSubviews:hiddenSubviews];
+    return [self PNGDataForBitmapImageRep:rep lowQuality:lowQuality];
+}
+
+- (NSData *)imageDataForLayer:(CALayer *)layer includeSublayers:(BOOL)includeSublayers lowQuality:(BOOL)lowQuality {
+    if (!layer || layer.isHidden || CGRectIsEmpty(layer.bounds) || ![self canCreateImageContextWithSize:layer.bounds.size]) {
+        return nil;
+    }
+    NSArray<CALayer *> *hiddenSublayers = includeSublayers ? @[] : [self hideVisibleSublayersOfLayer:layer];
+    CGFloat nativeScale = MAX(layer.contentsScale, 1.0);
+    CGFloat maxDimension = MAX(layer.bounds.size.width, layer.bounds.size.height);
+    CGFloat scale = MIN(nativeScale, 20000.0 / MAX(maxDimension, 1.0));
+    size_t pixelWidth = MAX((size_t)1, (size_t)ceil(layer.bounds.size.width * scale));
+    size_t pixelHeight = MAX((size_t)1, (size_t)ceil(layer.bounds.size.height * scale));
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, colorSpace,
+                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(colorSpace);
+    if (!context) {
+        [self restoreHiddenSublayers:hiddenSublayers];
+        return nil;
+    }
+    CGContextScaleCTM(context, scale, scale);
+    CGContextTranslateCTM(context, -CGRectGetMinX(layer.bounds), -CGRectGetMinY(layer.bounds));
+    [layer renderInContext:context];
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    [self restoreHiddenSublayers:hiddenSublayers];
+    if (!image) {
+        return nil;
+    }
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
+    rep.size = layer.bounds.size;
     return [self PNGDataForBitmapImageRep:rep lowQuality:lowQuality];
 }
 
@@ -1462,9 +1589,37 @@
     return hiddenSubviews.copy;
 }
 
+- (NSArray<CALayer *> *)hideStandaloneVisibleSublayersOfLayer:(CALayer *)layer {
+    NSMutableArray<CALayer *> *hiddenSublayers = [NSMutableArray array];
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        if (![self hostViewForLayer:sublayer] && !sublayer.isHidden) {
+            sublayer.hidden = YES;
+            [hiddenSublayers addObject:sublayer];
+        }
+    }
+    return hiddenSublayers.copy;
+}
+
+- (NSArray<CALayer *> *)hideVisibleSublayersOfLayer:(CALayer *)layer {
+    NSMutableArray<CALayer *> *hiddenSublayers = [NSMutableArray array];
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        if (!sublayer.isHidden) {
+            sublayer.hidden = YES;
+            [hiddenSublayers addObject:sublayer];
+        }
+    }
+    return hiddenSublayers.copy;
+}
+
 - (void)restoreHiddenSubviews:(NSArray<NSView *> *)hiddenSubviews {
     for (NSView *subview in hiddenSubviews) {
         subview.hidden = NO;
+    }
+}
+
+- (void)restoreHiddenSublayers:(NSArray<CALayer *> *)hiddenSublayers {
+    for (CALayer *sublayer in hiddenSublayers) {
+        sublayer.hidden = NO;
     }
 }
 
@@ -1478,16 +1633,18 @@
     item.displayName = window.title.length ? window.title : NSStringFromClass(window.class);
     item.viewClassName = NSStringFromClass(window.class);
     item.frame = [self wireFrameForWindow:window];
-    item.bounds = window.contentView.bounds;
+    item.bounds = window.pv_inspect_bounds;
     item.hidden = !window.isVisible;
     item.alpha = window.alphaValue;
-    item.viewObject = [self identityForObject:window prefix:@"mac-window"];
-    item.layerObject = [self identityForObject:window prefix:@"mac-window"];
-    item.attributesGroupList = [self attributeGroupsForWindow:window];
+    item.windowObject = [self identityForObject:window prefix:@"mac-window"];
+    if (window.windowController) {
+        item.hostWindowControllerObject = [self identityForObject:window.windowController prefix:@"mac-window-controller"];
+    }
     item.shouldCaptureImage = YES;
 
-    if (window.contentView) {
-        item.children = @[[self displayItemForView:window.contentView]];
+    NSView *rootView = window.pv_inspect_rootView;
+    if (rootView) {
+        item.children = @[[self displayItemForView:rootView]];
     }
     return item;
 }
@@ -1497,33 +1654,86 @@
     item.objectID = [self identifierForObject:view prefix:@"mac-view"];
     item.displayName = NSStringFromClass(view.class);
     item.viewClassName = NSStringFromClass(view.class);
-    item.layerClassName = view.layer ? NSStringFromClass(view.layer.class) : @"";
+    CALayer *ownedLayer = view.layer.delegate == (id<CALayerDelegate>)view ? view.layer : nil;
+    item.layerClassName = ownedLayer ? NSStringFromClass(ownedLayer.class) : @"";
     item.viewObject = [self identityForObject:view prefix:@"mac-view"];
-    if (view.layer) {
-        item.layerObject = [self identityForObject:view.layer prefix:@"mac-layer"];
+    if (ownedLayer) {
+        item.layerObject = [self identityForObject:ownedLayer prefix:@"mac-layer"];
+    }
+    NSViewController *viewController = [self hostViewControllerForView:view];
+    if (viewController) {
+        item.hostViewControllerObject = [self identityForObject:viewController prefix:@"mac-view-controller"];
     }
     item.frame = [self wireFrameForView:view];
     item.bounds = view.bounds;
     item.hidden = view.isHidden;
     item.alpha = view.alphaValue;
     item.backgroundColorText = [self colorTextForView:view];
-    if (view.layer.backgroundColor) {
-        item.backgroundColor = [NSColor colorWithCGColor:view.layer.backgroundColor];
+    if (ownedLayer.backgroundColor) {
+        item.backgroundColor = [NSColor colorWithCGColor:ownedLayer.backgroundColor];
     }
-    item.attributesGroupList = [self attributeGroupsForView:view];
-    NSDictionary *customInfo = [self customInfoForObjects:view.layer ? @[view, view.layer] : @[view] saveAttrSetter:YES];
+    NSDictionary *customInfo = [self customInfoForObjects:ownedLayer ? @[view, ownedLayer] : @[view] saveAttrSetter:YES];
     item.customAttrGroupList = customInfo[@"groups"] ?: @[];
     item.customDisplayTitle = customInfo[@"title"];
     item.danceuiSource = customInfo[@"source"];
     item.eventHandlers = [self eventHandlersForView:view];
     item.shouldCaptureImage = YES;
 
-    NSMutableArray<PVDisplayItem *> *children = [NSMutableArray arrayWithCapacity:view.subviews.count];
-    for (NSView *subview in view.subviews) {
-        [children addObject:[self displayItemForView:subview]];
-    }
-    item.children = children.copy;
+    item.children = [self subitemsForView:view];
     return item;
+}
+
+- (NSArray<PVDisplayItem *> *)subitemsForView:(NSView *)view {
+    NSUInteger capacity = view.subviews.count + view.layer.sublayers.count;
+    NSMutableArray<PVDisplayItem *> *subitems = [NSMutableArray arrayWithCapacity:capacity];
+    for (NSView *subview in view.subviews.copy) {
+        [subitems addObject:[self displayItemForView:subview]];
+    }
+    CALayer *ownedLayer = view.layer.delegate == (id<CALayerDelegate>)view ? view.layer : nil;
+    NSArray<CALayer *> *candidateLayers = ownedLayer ? ownedLayer.sublayers.copy : (view.layer ? @[view.layer] : @[]);
+    for (CALayer *candidateLayer in candidateLayers) {
+        PVDisplayItem *layerItem = [self displayItemForStandaloneLayer:candidateLayer];
+        if (layerItem) {
+            [subitems addObject:layerItem];
+        }
+    }
+    return subitems.copy;
+}
+
+- (PVDisplayItem *)displayItemForStandaloneLayer:(CALayer *)layer {
+    if (!layer || [self hostViewForLayer:layer]) {
+        return nil;
+    }
+    PVDisplayItem *item = [[PVDisplayItem alloc] init];
+    item.objectID = [self identifierForObject:layer prefix:@"mac-layer"];
+    item.displayName = NSStringFromClass(layer.class);
+    item.layerClassName = NSStringFromClass(layer.class);
+    item.layerObject = [self identityForObject:layer prefix:@"mac-layer"];
+    item.frame = [self wireFrameForLayer:layer];
+    item.bounds = layer.bounds;
+    item.hidden = layer.isHidden;
+    item.alpha = layer.opacity;
+    if (layer.backgroundColor) {
+        item.backgroundColor = [NSColor colorWithCGColor:layer.backgroundColor];
+    }
+    NSDictionary *customInfo = [self customInfoForObjects:@[layer] saveAttrSetter:YES];
+    item.customAttrGroupList = customInfo[@"groups"] ?: @[];
+    item.customDisplayTitle = customInfo[@"title"];
+    item.danceuiSource = customInfo[@"source"];
+    item.shouldCaptureImage = YES;
+    item.children = [self subitemsForStandaloneLayer:layer];
+    return item;
+}
+
+- (NSArray<PVDisplayItem *> *)subitemsForStandaloneLayer:(CALayer *)layer {
+    NSMutableArray<PVDisplayItem *> *subitems = [NSMutableArray arrayWithCapacity:layer.sublayers.count];
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        PVDisplayItem *layerItem = [self displayItemForStandaloneLayer:sublayer];
+        if (layerItem) {
+            [subitems addObject:layerItem];
+        }
+    }
+    return subitems.copy;
 }
 
 - (NSArray<PVEventHandler *> *)eventHandlersForView:(NSView *)view {
@@ -1546,7 +1756,12 @@
         handler.eventName = NSStringFromClass(recognizer.class);
         handler.gestureRecognizerIsEnabled = recognizer.enabled;
         handler.gestureRecognizerDelegator = recognizer.delegate ? [self descriptionForObject:recognizer.delegate] : nil;
-        handler.recognizerIvarTraces = @[];
+        NSArray<PVIvarTrace *> *traces = [self ivarTracesForObject:recognizer];
+        NSMutableArray<NSString *> *traceDescriptions = [NSMutableArray arrayWithCapacity:traces.count];
+        for (PVIvarTrace *trace in traces) {
+            [traceDescriptions addObject:[NSString stringWithFormat:@"(%@ *) -> %@", trace.hostClassName, trace.ivarName]];
+        }
+        handler.recognizerIvarTraces = traceDescriptions.copy;
         handler.recognizerOid = [self registerObject:recognizer];
         id target = recognizer.target;
         if (target && recognizer.action) {
@@ -1560,7 +1775,14 @@
 }
 
 - (void)applyCustomInfoToDetail:(PVDisplayItemDetail *)detail object:(id)object {
-    NSDictionary *customInfo = [self customInfoForObjects:object ? @[object] : @[] saveAttrSetter:YES];
+    NSArray *objects = object ? @[object] : @[];
+    if ([object isKindOfClass:NSView.class]) {
+        NSView *view = object;
+        if (view.layer.delegate == (id<CALayerDelegate>)view) {
+            objects = @[view, view.layer];
+        }
+    }
+    NSDictionary *customInfo = [self customInfoForObjects:objects saveAttrSetter:YES];
     detail.customAttrGroupList = customInfo[@"groups"] ?: @[];
     detail.customDisplayTitle = customInfo[@"title"];
     detail.danceUISource = customInfo[@"source"];
@@ -1726,14 +1948,293 @@
 }
 
 - (PVObject *)identityForObject:(id)object prefix:(NSString *)prefix {
-    if (object) {
-        [self.objectRegistry setObject:object forKey:@((unsigned long)(uintptr_t)object)];
+    if (!object) {
+        return nil;
     }
+    [self.objectRegistry setObject:object forKey:@((unsigned long)(uintptr_t)object)];
     PVObject *identity = [[PVObject alloc] init];
     identity.oid = (unsigned long)(uintptr_t)object;
     identity.memoryAddress = [NSString stringWithFormat:@"%p", object];
     identity.classChainList = [self classChainForObject:object];
+    identity.ivarTraces = [self ivarTracesForObject:object];
+    identity.specialTrace = [self specialTraceForObject:object];
     return identity;
+}
+
+- (void)reloadIvarTracesForWindow:(NSWindow *)window {
+    [self.hostViewsByLayer removeAllObjects];
+    NSHashTable<NSObject *> *objects = [NSHashTable hashTableWithOptions:NSPointerFunctionsObjectPointerPersonality];
+    NSMutableOrderedSet<NSWindow *> *windows = [NSMutableOrderedSet orderedSet];
+    if (window) {
+        [windows addObject:window];
+    }
+    [windows addObjectsFromArray:NSApplication.sharedApplication.windows.copy ?: @[]];
+    for (NSWindow *candidateWindow in windows) {
+        [objects addObject:candidateWindow];
+        if (candidateWindow.windowController) {
+            [objects addObject:candidateWindow.windowController];
+        }
+        if (candidateWindow.contentViewController) {
+            [objects addObject:candidateWindow.contentViewController];
+        }
+        [self collectTraceObjectsFromView:candidateWindow.pv_inspect_rootView intoTable:objects];
+    }
+
+    for (NSObject *object in objects) {
+        [object pv_inspect_bindObject:nil forKey:PVMacIvarTracesBindingKey];
+    }
+    for (NSObject *object in objects) {
+        [self markIvarTracesForHostObject:object targetClass:object.class];
+    }
+}
+
+- (void)collectTraceObjectsFromView:(NSView *)view intoTable:(NSHashTable<NSObject *> *)objects {
+    if (!view) {
+        return;
+    }
+    [objects addObject:view];
+    if (view.layer) {
+        if (view.layer.delegate == (id<CALayerDelegate>)view) {
+            [self.hostViewsByLayer setObject:view forKey:view.layer];
+        }
+        [self collectTraceObjectsFromLayer:view.layer intoTable:objects];
+    }
+    NSViewController *viewController = [self hostViewControllerForView:view];
+    if (viewController) {
+        [objects addObject:viewController];
+    }
+    for (NSGestureRecognizer *recognizer in view.gestureRecognizers) {
+        [objects addObject:recognizer];
+    }
+    for (NSView *subview in view.subviews.copy) {
+        [self collectTraceObjectsFromView:subview intoTable:objects];
+    }
+}
+
+- (void)collectTraceObjectsFromLayer:(CALayer *)layer intoTable:(NSHashTable<NSObject *> *)objects {
+    if (!layer || [objects containsObject:layer]) {
+        return;
+    }
+    [objects addObject:layer];
+    for (CALayer *sublayer in layer.sublayers.copy) {
+        [self collectTraceObjectsFromLayer:sublayer intoTable:objects];
+    }
+}
+
+- (void)markIvarTracesForHostObject:(NSObject *)hostObject targetClass:(Class)targetClass {
+    if (!targetClass || [self shouldStopIvarTraceAtClass:targetClass]) {
+        return;
+    }
+
+    unsigned int count = 0;
+    Ivar *ivars = class_copyIvarList(targetClass, &count);
+    for (unsigned int index = 0; index < count; index++) {
+        Ivar ivar = ivars[index];
+        Class ivarClass = [self objectClassForIvar:ivar];
+        if (![self isInspectableTraceClass:ivarClass]) {
+            continue;
+        }
+
+        NSObject *referencedObject = object_getIvar(hostObject, ivar);
+        if (![referencedObject isKindOfClass:NSObject.class]) {
+            continue;
+        }
+
+        PVIvarTrace *trace = [[PVIvarTrace alloc] init];
+        trace.hostClassName = [self displayClassNameForClass:targetClass childClass:hostObject.class];
+        const char *name = ivar_getName(ivar);
+        trace.ivarName = name ? [NSString stringWithUTF8String:name] : @"";
+        if ([self isInvalidIvarTrace:trace]) {
+            continue;
+        }
+        if (hostObject == referencedObject) {
+            trace.relation = PVIvarTraceRelationValue_Self;
+        } else if ([hostObject isKindOfClass:NSView.class]) {
+            NSView *hostView = (NSView *)hostObject;
+            NSView *referencedView = [referencedObject isKindOfClass:NSView.class] ? (NSView *)referencedObject : nil;
+            CALayer *referencedLayer = [referencedObject isKindOfClass:CALayer.class] ? (CALayer *)referencedObject : referencedView.layer;
+            if (referencedView.superview == hostView || (hostView.layer && referencedLayer.superlayer == hostView.layer)) {
+                trace.relation = @"superview";
+            }
+        } else if ([hostObject isKindOfClass:CALayer.class]) {
+            CALayer *referencedLayer = [referencedObject isKindOfClass:CALayer.class] ? (CALayer *)referencedObject :
+                ([referencedObject isKindOfClass:NSView.class] ? ((NSView *)referencedObject).layer : nil);
+            if (referencedLayer.superlayer == (CALayer *)hostObject) {
+                trace.relation = @"superlayer";
+            }
+        }
+
+        NSArray<PVIvarTrace *> *traces = [referencedObject pv_inspect_getBindObjectForKey:PVMacIvarTracesBindingKey] ?: @[];
+        if (![traces containsObject:trace]) {
+            [referencedObject pv_inspect_bindObject:[traces arrayByAddingObject:trace] forKey:PVMacIvarTracesBindingKey];
+        }
+    }
+    free(ivars);
+    [self markIvarTracesForHostObject:hostObject targetClass:class_getSuperclass(targetClass)];
+}
+
+- (BOOL)shouldStopIvarTraceAtClass:(Class)targetClass {
+    static NSArray<NSString *> *classNamePrefixes;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        classNamePrefixes = @[@"NSObject", @"UIResponder", @"UIButton", @"UIButtonLabel", @"NSResponder"];
+    });
+    NSString *className = NSStringFromClass(targetClass);
+    for (NSString *prefix in classNamePrefixes) {
+        if ([className hasPrefix:prefix]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (Class)objectClassForIvar:(Ivar)ivar {
+    const char *typeEncoding = ivar_getTypeEncoding(ivar);
+    NSString *type = typeEncoding ? [NSString stringWithUTF8String:typeEncoding] : @"";
+    if (![type hasPrefix:@"@\""] || type.length <= 3) {
+        return Nil;
+    }
+    NSString *className = [type substringWithRange:NSMakeRange(2, type.length - 3)];
+    NSRange protocolRange = [className rangeOfString:@"<"];
+    if (protocolRange.location != NSNotFound) {
+        className = [className substringToIndex:protocolRange.location];
+    }
+    return NSClassFromString(className);
+}
+
+- (BOOL)isInspectableTraceClass:(Class)targetClass {
+    return targetClass &&
+        ([targetClass isSubclassOfClass:NSView.class] ||
+         [targetClass isSubclassOfClass:CALayer.class] ||
+         [targetClass isSubclassOfClass:NSViewController.class] ||
+         [targetClass isSubclassOfClass:NSWindow.class] ||
+         [targetClass isSubclassOfClass:NSWindowController.class] ||
+         [targetClass isSubclassOfClass:NSGestureRecognizer.class]);
+}
+
+- (BOOL)isInvalidIvarTrace:(PVIvarTrace *)trace {
+    NSDictionary<NSString *, NSSet<NSString *> *> *invalid = @{
+        @"NSViewController": [NSSet setWithObjects:@"_view", @"_parentViewController", nil],
+        @"NSWindowController": [NSSet setWithObject:@"_window"]
+    };
+    return [invalid[trace.hostClassName] containsObject:trace.ivarName];
+}
+
+- (NSString *)displayClassNameForClass:(Class)targetClass childClass:(Class)childClass {
+    NSString *targetName = NSStringFromClass(targetClass);
+    NSString *childName = NSStringFromClass(childClass);
+    return [targetName isEqualToString:childName] ? targetName : [NSString stringWithFormat:@"%@ : %@", childName, targetName];
+}
+
+- (NSArray<PVIvarTrace *> *)ivarTracesForObject:(NSObject *)object {
+    if (!object) {
+        return @[];
+    }
+    NSMutableArray<PVIvarTrace *> *traces = [NSMutableArray array];
+    NSView *view = [object isKindOfClass:NSView.class] ? (NSView *)object :
+        ([object isKindOfClass:CALayer.class] ? [self hostViewForLayer:(CALayer *)object] : nil);
+    NSViewController *viewController = view ? [self hostViewControllerForView:view] : nil;
+    NSMutableArray<NSObject *> *candidates = [NSMutableArray arrayWithObject:object];
+    if (view && view != object) {
+        [candidates insertObject:view atIndex:0];
+    }
+    if (viewController && viewController != object) {
+        [candidates insertObject:viewController atIndex:0];
+    }
+    for (NSObject *candidate in candidates) {
+        NSArray<PVIvarTrace *> *candidateTraces = [candidate pv_inspect_getBindObjectForKey:PVMacIvarTracesBindingKey] ?: @[];
+        for (PVIvarTrace *trace in candidateTraces) {
+            if (![traces containsObject:trace]) {
+                [traces addObject:trace];
+            }
+        }
+    }
+    return traces.copy;
+}
+
+- (NSString *)specialTraceForObject:(NSObject *)object {
+    if ([object isKindOfClass:NSWindow.class]) {
+        NSWindow *window = (NSWindow *)object;
+        return window.isKeyWindow ? [NSString stringWithFormat:@"KeyWindow ( Level: %@ )", @(window.level)] :
+            [NSString stringWithFormat:@"WindowLevel: %@", @(window.level)];
+    }
+
+    NSView *view = [object isKindOfClass:NSView.class] ? (NSView *)object :
+        ([object isKindOfClass:CALayer.class] ? [self hostViewForLayer:(CALayer *)object] : nil);
+    if (!view) {
+        return nil;
+    }
+    NSViewController *viewController = [self hostViewControllerForView:view];
+    if ([viewController isKindOfClass:NSCollectionViewItem.class] && viewController.view == view) {
+        NSCollectionViewItem *item = (NSCollectionViewItem *)viewController;
+        NSIndexPath *indexPath = [item.collectionView indexPathForItem:item];
+        if (indexPath) {
+            return [NSString stringWithFormat:@"{ item:%@, sec:%@ }", @(indexPath.item), @(indexPath.section)];
+        }
+    }
+    if (viewController.view == view) {
+        return [NSString stringWithFormat:@"%@.view", NSStringFromClass(viewController.class)];
+    }
+    if (view.window.contentView == view) {
+        return @"window.contentView";
+    }
+
+    if ([view isKindOfClass:NSClipView.class] && [view.superview isKindOfClass:NSScrollView.class]) {
+        NSScrollView *scrollView = (NSScrollView *)view.superview;
+        if (scrollView.contentView == view) {
+            return @"scrollView.contentView";
+        }
+    }
+    if ([view.superview isKindOfClass:NSClipView.class]) {
+        NSClipView *clipView = (NSClipView *)view.superview;
+        NSScrollView *scrollView = [clipView.superview isKindOfClass:NSScrollView.class] ? (NSScrollView *)clipView.superview : nil;
+        if (scrollView.documentView == view) {
+            return @"scrollView.documentView";
+        }
+    }
+
+    NSTableCellView *cellView = [view isKindOfClass:NSTableCellView.class] ? (NSTableCellView *)view :
+        (NSTableCellView *)[self ancestorOfView:view matchingClass:NSTableCellView.class];
+    if (cellView.textField == view) {
+        return @"cell.textField";
+    }
+    if (cellView.imageView == view) {
+        return @"cell.imageView";
+    }
+
+    NSTableView *tableView = (NSTableView *)[self ancestorOfView:view matchingClass:NSTableView.class];
+    if (tableView && ([view isKindOfClass:NSTableRowView.class] || [view isKindOfClass:NSTableCellView.class])) {
+        NSInteger row = [tableView rowForView:view];
+        NSInteger column = [tableView columnForView:view];
+        if (row >= 0 && column >= 0) {
+            return [NSString stringWithFormat:@"{ row:%@, col:%@ }", @(row), @(column)];
+        }
+        if (row >= 0) {
+            return [NSString stringWithFormat:@"{ row:%@ }", @(row)];
+        }
+    }
+
+    if ([view.superview isKindOfClass:NSBox.class] && ((NSBox *)view.superview).contentView == view) {
+        return @"box.contentView";
+    }
+    return nil;
+}
+
+- (NSViewController *)hostViewControllerForView:(NSView *)view {
+    NSResponder *responder = view.nextResponder;
+    if (![responder isKindOfClass:NSViewController.class]) {
+        return nil;
+    }
+    NSViewController *viewController = (NSViewController *)responder;
+    return viewController.view == view ? viewController : nil;
+}
+
+- (__kindof NSView *)ancestorOfView:(NSView *)view matchingClass:(Class)targetClass {
+    NSView *currentView = view.superview;
+    while (currentView && ![currentView isKindOfClass:targetClass]) {
+        currentView = currentView.superview;
+    }
+    return currentView;
 }
 
 - (NSArray<NSString *> *)classChainForObject:(id)object {

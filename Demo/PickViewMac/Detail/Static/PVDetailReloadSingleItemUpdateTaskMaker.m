@@ -9,6 +9,8 @@
 #import "PVDetailReloadSingleItemUpdateTaskMaker.h"
 #import "PVDetailStaticAsyncUpdateManager.h"
 #import "PVDetailAppsManager.h"
+#import "PVAppInfo.h"
+#import "PVDisplayItem+PVClient.h"
 #import "PVDetailVersionComparer.h"
 
 @implementation PVDetailReloadSingleItemUpdateTaskMaker
@@ -28,27 +30,41 @@
 
     if (item.doNotFetchScreenshotReason == PVFetchScreenshotPermitted) {
         PVStaticAsyncUpdateTask *task = [self taskFromItem:item];
+        if (!task) {
+            return nil;
+        }
         task.taskType = PVStaticAsyncUpdateTaskTypeGroupScreenshot;
         [tasks addObject:task];
         
         if (item.isExpandable) {
             PVStaticAsyncUpdateTask *task2 = [self taskFromItem:item];
-            task2.taskType = PVStaticAsyncUpdateTaskTypeSoloScreenshot;
-            [tasks addObject:task2];
+            if (task2) {
+                task2.taskType = PVStaticAsyncUpdateTaskTypeSoloScreenshot;
+                [tasks addObject:task2];
+            }
         }
     } else {
         PVStaticAsyncUpdateTask *task = [self taskFromItem:item];
+        if (!task) {
+            return nil;
+        }
         task.taskType = PVStaticAsyncUpdateTaskTypeNoScreenshot;
         [tasks addObject:task];
     }
-    [tasks firstObject].needBasisVisualInfo = YES;
     return tasks;
 }
 
 + (PVStaticAsyncUpdateTask *)taskFromItem:(PVDisplayItem *)item {
+    PVAppInfo *appInfo = [PVDetailAppsManager sharedInstance].inspectingApp.appInfo;
+    BOOL preferViewOid = [PVDetailHelper appInfoLooksLikeMacTarget:appInfo];
+    unsigned long oid = [item bestObjectOidPreferView:preferViewOid];
+    if (!oid) {
+        return nil;
+    }
     PVStaticAsyncUpdateTask *task = [PVStaticAsyncUpdateTask new];
-    task.oid = item.layerObject.oid;
+    task.oid = oid;
     task.frameSize = item.frame.size;
+    task.needBasisVisualInfo = YES;
     task.clientReadableVersion = [PVDetailHelper pickviewReadableVersion];
     return task;
 }

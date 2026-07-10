@@ -39,13 +39,15 @@
 /// 返回某个 PVAttribute 代表的属性是哪一个类拥有的，比如 PVAttrSec_UILabel_TextColor 是 UILabel 才有的
 + (NSString *)classNameWithAttrID:(PVAttrIdentifier)attrID;
 
++ (BOOL)isWindowPropertyWithAttrID:(PVAttrIdentifier)attrID;
+
 /// 一个 attr 要么属于 UIView 要么属于 CALayer，如果它属于 UIView 那么该方法返回 YES
 + (BOOL)isUIViewPropertyWithAttrID:(PVAttrIdentifier)attrID;
 
 /// 如果某个 attribute 是 enum，则这里会返回相应的 enum 的名称（如 @"NSTextAlignment"），进而可通过这个名称查询可用的枚举值列表
 + (NSString *)enumListNameWithAttrID:(PVAttrIdentifier)attrID;
 
-/// 如果返回 YES，则说明用户在 PickView 里修改了该 Attribute 的值后，应该重新拉取和更新相关图层的位置、截图等信息
+/// 如果返回 YES，则说明用户在 PV 里修改了该 Attribute 的值后，应该重新拉取和更新相关图层的位置、截图等信息
 + (BOOL)needPatchAfterModificationWithAttrID:(PVAttrIdentifier)attrID;
 
 /// 完整的名字
@@ -60,12 +62,11 @@
 /// 获取 setter 方法
 + (SEL)setterWithAttrID:(PVAttrIdentifier)attrID;
 
-/// 获取 “hideIfNil” 的值。如果为 YES，则当读取 getter 获取的 value 为 nil 时，PickView 不会传输该 attr
+/// 获取 “hideIfNil” 的值。如果为 YES，则当读取 getter 获取的 value 为 nil 时，PV 不会传输该 attr
 /// 如果为 NO，则即使 value 为 nil 也会传输（比如 label 的 text 属性，即使它是 nil 我们也要显示，所以它的 hideIfNil 应该为 NO）
 + (BOOL)hideIfNilWithAttrID:(PVAttrIdentifier)attrID;
 
-/// 该属性需要的最低的 iOS 版本，比如 safeAreaInsets 从 iOS 11.0 开始出现，则该方法返回 11，如果返回 0 则表示不限制 iOS 版本（注意 PickView 项目仅支持 iOS 8.0+）
+/// 该属性需要的最低的 iOS 版本，比如 safeAreaInsets 从 iOS 11.0 开始出现，则该方法返回 11，如果返回 0 则表示不限制 iOS 版本（注意 PV 项目仅支持 iOS 8.0+）
 + (NSInteger)minAvailableOSVersionWithAttrID:(PVAttrIdentifier)attrID;
 
 @end
-

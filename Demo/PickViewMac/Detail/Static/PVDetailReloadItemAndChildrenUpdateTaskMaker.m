@@ -9,6 +9,8 @@
 #import "PVDetailReloadItemAndChildrenUpdateTaskMaker.h"
 #import "PVDetailStaticAsyncUpdateManager.h"
 #import "PVDetailAppsManager.h"
+#import "PVAppInfo.h"
+#import "PVDisplayItem+PVClient.h"
 #import "PVDetailVersionComparer.h"
 
 @implementation PVDetailReloadItemAndChildrenUpdateTaskMaker
@@ -24,8 +26,14 @@
         AlertErrorText(NSLocalizedString(@"Operation failed.", nil), NSLocalizedString(@"Please upgrade the PickViewServer SDK version in your iOS project to 1.2.7 or higher.", nil), CurrentKeyWindow);
         return nil;
     }
+    PVAppInfo *appInfo = [PVDetailAppsManager sharedInstance].inspectingApp.appInfo;
+    BOOL preferViewOid = [PVDetailHelper appInfoLooksLikeMacTarget:appInfo];
+    unsigned long oid = [item bestObjectOidPreferView:preferViewOid];
+    if (!oid) {
+        return nil;
+    }
     PVStaticAsyncUpdateTask *task = [PVStaticAsyncUpdateTask new];
-    task.oid = item.layerObject.oid;
+    task.oid = oid;
     task.taskType = PVStaticAsyncUpdateTaskTypeNoScreenshot;
     task.attrRequest = PVDetailUpdateTaskAttrRequest_NotNeed;
     task.needBasisVisualInfo = YES;

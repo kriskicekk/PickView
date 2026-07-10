@@ -289,6 +289,8 @@
         modification.clientReadableVersion = [PVDetailHelper pickviewReadableVersion];
         if (attribute.modificationTargetOid) {
             modification.targetOid = attribute.modificationTargetOid;
+        } else if ([PVDashboardBlueprint isWindowPropertyWithAttrID:attribute.identifier]) {
+            modification.targetOid = modifyingItem.windowObject.oid;
         } else if ([PVDashboardBlueprint isUIViewPropertyWithAttrID:attribute.identifier]) {
             modification.targetOid = modifyingItem.viewObject.oid;
         } else {

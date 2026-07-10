@@ -74,8 +74,10 @@ typedef NS_ENUM(NSUInteger, PVDisplayItemProperty) {
 @property (nonatomic, assign) CGRect bounds;
 @property (nonatomic, strong, nullable) PVImage *soloScreenshot;
 @property (nonatomic, strong, nullable) PVImage *groupScreenshot;
+@property (nonatomic, strong, nullable) PVObject *windowObject;
 @property (nonatomic, strong, nullable) PVObject *viewObject;
 @property (nonatomic, strong, nullable) PVObject *layerObject;
+@property (nonatomic, strong, nullable) PVObject *hostWindowControllerObject;
 @property (nonatomic, strong, nullable) PVObject *hostViewControllerObject;
 @property (nonatomic, copy) NSArray<PVAttributesGroup *> *attributesGroupList;
 @property (nonatomic, copy) NSArray<PVAttributesGroup *> *customAttrGroupList;
