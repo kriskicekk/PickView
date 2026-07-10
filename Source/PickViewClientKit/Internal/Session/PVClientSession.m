@@ -8,15 +8,17 @@
 #import "PVClientSession.h"
 
 #import "PVPendingRequest.h"
+#import "PVArchiveCodec.h"
 #import "PVConnectionProtocol.h"
-#import "PVFrame.h"
 #import "PVErrorCode.h"
+#import "PVFrame.h"
 #import "PVKitVersion.h"
-#import "PVRequestType.h"
-#import "PVUtils.h"
-#import "PVPeerIdentityConstant.h"
 #import "PVPeerIdentity.h"
+#import "PVPeerIdentityConstant.h"
 #import "PVLANEndpoint.h"
+#import "PVRequestType.h"
+#import "PVResponseAttachment.h"
+#import "PVUtils.h"
 
 static NSTimeInterval const PVClientSessionHeartbeatInterval = 3.0;
 static NSTimeInterval const PVClientSessionHeartbeatTimeout = 2.0;
@@ -35,6 +37,7 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
 
 - (void)finishWithCloseError:(NSError *)error closeConnection:(BOOL)closeConnection notifyDelegate:(BOOL)notifyDelegate;
 - (void)finishPendingRequestsWithError:(NSError *)error;
+- (void)scheduleTimeoutForRequest:(PVPendingRequest *)request;
 - (void)startHeartbeatIfNeed;
 - (void)stopHeartbeat;
 - (void)sendHeartbeatIfNeeded;
@@ -65,8 +68,25 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
 }
 
 - (void)openWithCompletion:(void (^)(NSError * _Nullable))completion {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self openWithCompletion:completion];
+        });
+        return;
+    }
     self.state = PVClientSessionStateConnecting;
     [self.connection connectWithCompletion:^(NSError *error) {
+        if (!NSThread.isMainThread) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self handleConnectCompletionWithError:error completion:completion];
+            });
+            return;
+        }
+        [self handleConnectCompletionWithError:error completion:completion];
+    }];
+}
+
+- (void)handleConnectCompletionWithError:(NSError *)error completion:(void (^)(NSError * _Nullable))completion {
         if (error) {
             self.state = PVClientSessionStateFailed;
             if (completion) completion(error);
@@ -86,7 +106,6 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
             [self startHeartbeatIfNeed];
             if (completion) completion(nil);
         }];
-    }];
 }
 
 - (void)validateVersionWithCompletion:(void (^)(PVPeerIdentity * _Nullable, NSError * _Nullable))completion {
@@ -131,12 +150,22 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
                 payload:(NSData *)payload
         timeoutInterval:(NSTimeInterval)timeoutInterval
              completion:(void (^)(NSData * _Nullable, NSError * _Nullable))completion {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self sendRequestType:type payload:payload timeoutInterval:timeoutInterval completion:completion];
+        });
+        return;
+    }
     if (self.state != PVClientSessionStateReady && self.state != PVClientSessionStateHandshaking) {
         if (completion) {
             NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeDisconnected userInfo:@{NSLocalizedDescriptionKey: @"Client session is not ready."}];
             completion(nil, error);
         }
         return;
+    }
+
+    if (type != PVRequestTypePing && type != PVRequestTypeHeartbeat) {
+        [self discardPendingRequestsWithType:type];
     }
 
     uint32_t tag = [self nextRequestTag];
@@ -146,25 +175,63 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
 
     [self.connection sendFrame:frame completion:^(NSError *error) {
         if (error) {
-            [self finishRequestWithTag:tag payload:nil error:error];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self finishRequestWithTag:tag payload:nil error:error];
+            });
         }
     }];
 
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeoutInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (!self.pendingRequests[@(tag)]) {
-            return;
+    [self scheduleTimeoutForRequest:request];
+}
+
+- (void)discardPendingRequestsWithType:(uint32_t)type {
+    NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                         code:PVErrorCodeDiscarded
+                                     userInfo:@{NSLocalizedDescriptionKey: @"The request was discarded because a newer request of the same type was sent."}];
+    for (NSNumber *tag in self.pendingRequests.allKeys.copy) {
+        PVPendingRequest *request = self.pendingRequests[tag];
+        if (request.type == type) {
+            [self finishRequestWithTag:request.tag payload:nil error:error];
         }
-        NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeTimeout userInfo:@{NSLocalizedDescriptionKey: @"Request timed out."}];
-        [self finishRequestWithTag:tag payload:nil error:error];
-    });
+    }
 }
 
 - (void)sendPushType:(uint32_t)type payload:(NSData *)payload completion:(void (^)(NSError * _Nullable))completion {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self sendPushType:type payload:payload completion:completion];
+        });
+        return;
+    }
     PVFrame *frame = [[PVFrame alloc] initWithType:type tag:0 payload:payload];
     [self.connection sendFrame:frame completion:completion];
 }
 
+- (void)cancelPendingRequestsWithType:(uint32_t)type {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self cancelPendingRequestsWithType:type];
+        });
+        return;
+    }
+    NSArray<NSNumber *> *tags = self.pendingRequests.allKeys.copy;
+    for (NSNumber *tag in tags) {
+        PVPendingRequest *request = self.pendingRequests[tag];
+        if (request.type != type) {
+            continue;
+        }
+        request.timeoutToken += 1;
+        [self.pendingRequests removeObjectForKey:tag];
+    }
+}
+
 - (void)close {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self close];
+        });
+        return;
+    }
     NSError *error = [NSError errorWithDomain:PVErrorDomain
                                          code:PVErrorCodeDisconnected
                                      userInfo:@{NSLocalizedDescriptionKey: @"Client session closed."}];
@@ -210,14 +277,72 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
     if (!request) {
         return;
     }
-    [self.pendingRequests removeObjectForKey:@(tag)];
+
+    BOOL shouldKeepRequest = NO;
+    if (!error) {
+        shouldKeepRequest = [self shouldKeepRequest:request forResponsePayload:payload];
+    }
+
     if (request.completion) {
         request.completion(payload, error);
     }
+
+    if (self.pendingRequests[@(tag)] != request) {
+        return;
+    }
+
+    if (shouldKeepRequest) {
+        [self scheduleTimeoutForRequest:request];
+    } else {
+        [self.pendingRequests removeObjectForKey:@(tag)];
+    }
+}
+
+- (BOOL)shouldKeepRequest:(PVPendingRequest *)request forResponsePayload:(NSData *)payload {
+    if (!payload.length) {
+        return NO;
+    }
+
+    NSError *decodeError = nil;
+    id object = [PVArchiveCodec unarchivedObjectFromData:payload
+                                          allowedClasses:[PVArchiveCodec defaultAllowedClasses]
+                                                   error:&decodeError];
+    if (![object isKindOfClass:PVResponseAttachment.class]) {
+        return NO;
+    }
+
+    PVResponseAttachment *attachment = object;
+    if (attachment.dataTotalCount == 0) {
+        return NO;
+    }
+
+    NSUInteger currentCount = attachment.currentDataCount > 0 ? attachment.currentDataCount : 1;
+    request.receivedDataCount += currentCount;
+    return request.receivedDataCount < attachment.dataTotalCount;
+}
+
+- (void)scheduleTimeoutForRequest:(PVPendingRequest *)request {
+    request.timeoutToken += 1;
+    uint32_t tag = request.tag;
+    NSUInteger timeoutToken = request.timeoutToken;
+    NSTimeInterval timeoutInterval = request.timeoutInterval;
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeoutInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        PVPendingRequest *pendingRequest = self.pendingRequests[@(tag)];
+        if (!pendingRequest || pendingRequest.timeoutToken != timeoutToken) {
+            return;
+        }
+        NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                             code:PVErrorCodeTimeout
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Request timed out."}];
+        [self finishRequestWithTag:tag payload:nil error:error];
+    });
 }
 
 - (BOOL)validatePeerIdentity:(PVPeerIdentity *)peerIdentity error:(NSError **)error {
-    PVPeerIdentity *identity = [PVPeerIdentity sharedIdentity];
+    PVPeerIdentity *identity = [PVPeerIdentity localIdentityWithProtocolVersion:PVClientProtocolVersion
+                                                       supportedPeerVersionMin:PVClientSupportedPeerVersionMin
+                                                       supportedPeerVersionMax:PVClientSupportedPeerVersionMax];
 
     NSString *peerVersion = peerIdentity.protocolVersion;
     if (!peerVersion || peerVersion.length == 0) {
@@ -345,10 +470,18 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
 #pragma mark - PVConnectionDelegate
 
 - (void)connection:(id<PVConnectionProtocol>)connection didReceiveFrame:(PVFrame *)frame {
-    [self finishRequestWithTag:frame.tag payload:frame.payload error:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self finishRequestWithTag:frame.tag payload:frame.payload error:nil];
+    });
 }
 
 - (void)connection:(id<PVConnectionProtocol>)connection didCloseWithError:(NSError *)error {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self connection:connection didCloseWithError:error];
+        });
+        return;
+    }
     if (connection != self.connection || self.didNotifyClose) {
         return;
     }

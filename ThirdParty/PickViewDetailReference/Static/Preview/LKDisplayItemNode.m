@@ -1,0 +1,284 @@
+//
+//  LKDisplayItemNode.m
+//  PickView
+//
+//  Created by kris cheng on 2026/7/9.
+//
+
+#import "LKDisplayItemNode.h"
+#import "PickViewDisplayItem.h"
+#import "LKPreferenceManager.h"
+#import "LKHierarchyDataSource.h"
+
+@interface LKDisplayItemNode () <PickViewDisplayItemDelegate>
+
+@property(nonatomic, strong) LKHierarchyDataSource *dataSource;
+
+@property(nonatomic, strong) SCNNode *contentNode;
+@property(nonatomic, strong) SCNPlane *contentPlane;
+
+@property(nonatomic, strong) SCNGeometry *borderGeometry;
+@property(nonatomic, strong) SCNNode *borderNode;
+@property(nonatomic, strong) NSColor *borderColor;
+
+@property(nonatomic, strong) SCNNode *maskNode;
+@property(nonatomic, strong) SCNPlane *maskPlane;
+
+@end
+
+@implementation LKDisplayItemNode
+
+- (instancetype)initWithDataSource:(LKHierarchyDataSource *)dataSource {
+//    NSLog(@"LKDisplayItemNode - init");
+    
+    if (self = [super init]) {
+        self.dataSource = dataSource;
+        
+        self.contentPlane = [SCNPlane geometry];
+        self.contentPlane.firstMaterial.doubleSided = YES;
+        self.contentPlane.firstMaterial.lightingModelName = SCNLightingModelConstant;
+        self.contentNode = [SCNNode nodeWithGeometry:self.contentPlane];
+        self.contentPlane.firstMaterial.diffuse.contents = [NSColor clearColor];
+        self.contentNode.position = SCNVector3Make(0, 0, 0);
+        self.contentNode.name = @"screenshot";
+        self.contentNode.categoryBitMask = PickViewPreviewBitMask_NoLight;
+        [self addChildNode:self.contentNode];
+        
+        // 注意这里并没有 add maskNode，需要的时候再 add
+        self.maskPlane = [SCNPlane geometry];
+        self.maskPlane.firstMaterial.doubleSided = YES;
+        self.maskNode = [SCNNode nodeWithGeometry:self.maskPlane];
+        self.maskNode.name = @"mask";
+        self.maskNode.position = SCNVector3Make(0, 0, .001);
+        self.maskNode.categoryBitMask = PickViewPreviewBitMask_HasLight;
+        
+        self.borderNode = [SCNNode node];
+        self.borderNode.name = @"border";
+        self.borderNode.position = SCNVector3Make(0, 0, .002);
+        self.borderNode.categoryBitMask = PickViewPreviewBitMask_NoLight;
+        [self addChildNode:self.borderNode];
+    }
+    return self;
+}
+
+- (void)setPreferenceManager:(LKPreferenceManager *)preferenceManager {
+    _preferenceManager = preferenceManager;
+    [preferenceManager.showHiddenItems subscribe:self action:@selector(_renderVisibility) relatedObject:nil];
+    [preferenceManager.showOutline subscribe:self action:@selector(_renderImageAndColor) relatedObject:nil];
+    [preferenceManager.isQuickSelecting subscribe:self action:@selector(_renderVisibility) relatedObject:nil];
+}
+
+- (void)setIsDarkMode:(BOOL)isDarkMode {
+    _isDarkMode = isDarkMode;
+    [self _renderImageAndColor];
+}
+
+- (void)setDisplayItem:(PickViewDisplayItem *)displayItem {
+    _displayItem = displayItem;
+    
+//    NSLog(@"LKDisplayItemNode - setContentPlane");
+    /// 不能把 contents 设置成 nil，否则某些场景下会发生内容渲染错乱的情况
+    self.contentPlane.firstMaterial.diffuse.contents = displayItem.backgroundColor ? : [NSColor clearColor];
+    
+    /// 这一句会使得 displayItem:propertyDidChange: 被立即调用，参数是 PickViewDisplayItemProperty_None
+    displayItem.previewItemDelegate = self;
+    
+//    self.name = [NSString stringWithFormat:@"DisplayItem(%@)", displayItem.title];
+}
+
+- (void)setBorderColor:(NSColor *)borderColor {
+    _borderColor = borderColor;
+    [self _renderborderColor];
+}
+
+- (void)setIndex:(NSUInteger)index {
+//    NSLog(@"LKDisplayItemNode - setIndex");
+    
+    _index = index;
+    self.contentNode.renderingOrder = index * 10;
+    self.maskNode.renderingOrder = index * 10 + 1;
+    self.borderNode.renderingOrder = index * 10 + 2;
+}
+
+- (void)_renderborderColor {
+//    NSLog(@"LKDisplayItemNode - renderBorderColor");
+    
+    self.borderGeometry.firstMaterial.diffuse.contents = self.borderColor;
+}
+
+- (SCNGeometry *)_makeBorderGeometryWithPlaneNode:(SCNNode *)planeNode {
+    SCNVector3 max,min;
+    [planeNode getBoundingBoxMin:&min max:&max];
+    CGFloat xx = max.x - min.x;
+    CGFloat yy = max.y - min.y;
+    SCNVector3 vec[] = {
+        max,
+        SCNVector3Make(max.x, max.y - yy, max.z),
+        SCNVector3Make(max.x - xx, max.y - yy, max.z),
+        SCNVector3Make(max.x - xx, max.y, max.z),
+    };
+    GLubyte indexs[] = {0, 1, 1, 2, 2, 3, 3, 0};
+    SCNGeometrySource *vecSource = [SCNGeometrySource geometrySourceWithVertices:vec count:4];
+    NSData * indexData = [NSData dataWithBytes:indexs length:8];
+    SCNGeometryElement *indexElement = [SCNGeometryElement geometryElementWithData:indexData primitiveType:SCNGeometryPrimitiveTypeLine primitiveCount:4 bytesPerIndex:sizeof(GLubyte)];
+    SCNGeometry *geometry = [SCNGeometry geometryWithSources:@[vecSource] elements:@[indexElement]];
+    geometry.firstMaterial.doubleSided = YES;
+    geometry.firstMaterial.lightingModelName = SCNLightingModelConstant;
+    return geometry;
+}
+
+- (void)_renderVisibility {
+//    NSLog(@"LKDisplayItemNode - renderVisibility");
+    
+    BOOL displayingInHierarchy = self.displayItem.displayingInHierarchy;
+    BOOL inHiddenHierarchy = self.displayItem.inHiddenHierarchy;
+    BOOL showEvenWhenCollapsed = self.preferenceManager.isQuickSelecting.currentBOOLValue && !self.displayItem.superItem.preferToBeCollapsed;
+    BOOL showHiddenItems = self.preferenceManager.showHiddenItems.currentBOOLValue;
+    
+    BOOL canSelect;
+    if (inHiddenHierarchy && !showHiddenItems) {
+        self.contentNode.opacity = 0;
+        self.borderNode.opacity = 0;
+        self.maskNode.hidden = YES;
+        canSelect = NO;
+        
+    } else if (displayingInHierarchy) {
+        self.contentNode.opacity = 1;
+        self.borderNode.opacity = 1;
+        self.maskNode.hidden = NO;
+        canSelect = YES;
+        
+    } else {
+        self.contentNode.opacity = 0;
+        self.maskNode.hidden = YES;
+        if (showEvenWhenCollapsed) {
+            self.borderNode.opacity = 1;
+            canSelect = YES;
+        } else {
+            self.borderNode.opacity = 0;
+            canSelect = NO;
+        }
+    }
+    
+    if (canSelect) {
+        self.contentNode.categoryBitMask = PickViewPreviewBitMask_Selectable|PickViewPreviewBitMask_NoLight;
+    } else {
+        self.contentNode.categoryBitMask = PickViewPreviewBitMask_Unselectable|PickViewPreviewBitMask_NoLight;
+    }
+}
+
+- (void)_renderImageAndColor {
+//    NSLog(@"LKDisplayItemNode - renderImageAndColor");
+    
+    BOOL isSelected = (self.dataSource.selectedItem == self.displayItem);
+    BOOL isHovered = (self.dataSource.hoveredItem == self.displayItem);
+    
+    PickViewImage *appropriateScreenshot = self.displayItem.appropriateScreenshot;
+    NSAssert(MAX(appropriateScreenshot.representations.firstObject.pixelsWide, appropriateScreenshot.representations.firstObject.pixelsHigh) <= PickViewNodeImageMaxLengthInPx , @"image is too large");
+    self.contentPlane.firstMaterial.diffuse.contents = appropriateScreenshot;
+    
+    BOOL tooLargeToFetchScreenshot = !appropriateScreenshot && self.displayItem.doNotFetchScreenshotReason == PVDoNotFetchScreenshotForTooLarge;
+    
+    // 更新 border 颜色
+    if (isSelected || isHovered) {
+        if (tooLargeToFetchScreenshot) {
+            self.borderColor = PickViewColorRGBAMake(255, 38, 0, .8);
+        } else {
+            self.borderColor = PickViewColorMake(100, 146, 199);
+        }
+    } else if (self.preferenceManager.showOutline.currentBOOLValue) {
+        if (tooLargeToFetchScreenshot) {
+            self.borderColor = self.isDarkMode ? PickViewColorRGBAMake(255, 38, 0, .5) : PickViewColorRGBAMake(255, 38, 0, .6);
+        } else {
+            self.borderColor = self.isDarkMode ? PickViewColorRGBAMake(160, 168, 189, .6) : PickViewColorRGBAMake(120, 122, 124, .6);
+        }
+    } else {
+        self.borderColor = [NSColor clearColor];
+    }
+    
+    // 更新 mask 颜色
+    NSColor *maskColor = nil;
+    CGFloat maskOpacity = 0;
+    if (tooLargeToFetchScreenshot) {
+        maskColor = PickViewColorMake(255, 38, 0);
+        if (isSelected) {
+            maskOpacity = .45;
+        } else if (isHovered) {
+            maskOpacity = .3;
+        } else {
+            maskOpacity = self.isDarkMode ? .17 : .2;
+        }
+    } else {
+        maskColor = PickViewColorMake(110, 183, 255);
+        NSInteger level = [[LKPreferenceManager mainManager] imageContrastLevel];
+        if (level < 0 || level > 2) {
+            NSAssert(NO, @"");
+            level = 0;
+        }
+        if (isSelected) {
+            maskOpacity = [@[@.35, @.6, @.85][level] doubleValue];
+        } else if (isHovered) {
+            maskOpacity = [@[@.18, @.38, @.6][level] doubleValue];
+        } else {
+            maskOpacity = 0;
+        }
+    }
+    if (maskOpacity > 0 && !self.maskNode.parentNode) {
+        [self insertChildNode:self.maskNode atIndex:1];
+    }
+    self.maskNode.opacity = maskOpacity;
+    self.maskPlane.firstMaterial.diffuse.contents = maskColor;
+}
+
+#pragma mark - <PickViewDisplayItemDelegate>
+
+- (void)displayItem:(PickViewDisplayItem *)displayItem propertyDidChange:(PickViewDisplayItemProperty)property {
+//    NSLog(@"LKDisplayItemNode - %@ did Change", @(property));
+    
+    if (property == PickViewDisplayItemProperty_None || property == PickViewDisplayItemProperty_FrameToRoot) {
+        CGRect frameToRoot = [displayItem calculateFrameToRoot];
+        
+        CGFloat originX = frameToRoot.origin.x;
+        CGFloat originY = frameToRoot.origin.y;
+        CGFloat width = frameToRoot.size.width;
+        CGFloat height = frameToRoot.size.height;
+        CGFloat xOffSet = -self.screenSize.width / 2;
+        CGFloat yOffSet = self.screenSize.height / 2;
+        CGFloat transformedX = (originX + width / 2 + xOffSet) ;
+        CGFloat transformedY = (-(originY + height / 2) + yOffSet);
+        
+        CGFloat factor = 0.01;
+        
+        self.contentPlane.width = width * factor;
+        self.contentPlane.height = height * factor;
+        
+        self.maskPlane.width = self.contentPlane.width;
+        self.maskPlane.height = self.contentPlane.height;
+        
+        SCNVector3 position = self.position;
+        position.x = transformedX * factor;
+        position.y = transformedY * factor;
+        self.position = position;
+        
+        self.borderGeometry = [self _makeBorderGeometryWithPlaneNode:self.contentNode];
+        self.borderNode.geometry = self.borderGeometry;
+        [self _renderborderColor];
+    }
+    
+    if (property == PickViewDisplayItemProperty_None ||
+        property == PickViewDisplayItemProperty_IsExpandable ||
+        property == PickViewDisplayItemProperty_IsExpanded ||
+        property == PickViewDisplayItemProperty_SoloScreenshot ||
+        property == PickViewDisplayItemProperty_GroupScreenshot ||
+        property == PickViewDisplayItemProperty_IsSelected ||
+        property == PickViewDisplayItemProperty_IsHovered ||
+        property == PickViewDisplayItemProperty_AvoidSyncScreenshot) {
+        [self _renderImageAndColor];
+    }
+    
+    if (property == PickViewDisplayItemProperty_None || property == PickViewDisplayItemProperty_DisplayingInHierarchy || property == PickViewDisplayItemProperty_InHiddenHierarchy) {
+        [self _renderVisibility];
+    }
+}
+
+@end

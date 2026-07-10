@@ -12,13 +12,20 @@
 #import "PVCompositeRequestHandler.h"
 #import "PVConnectionProtocol.h"
 #import "PVHeartbeatHandler.h"
+#import "PVHierarchyDetailsHandler.h"
+#import "PVHierarchyHandler.h"
+#import "PVHierarchyProvider.h"
+#import "PVIOSHierarchyProvider.h"
 #import "PVLANListener.h"
 #import "PVListenerProtocol.h"
 #import "PVLocalLoopbackListener.h"
 #import "PVMessageHandler.h"
+#import "PVMacHierarchyProvider.h"
 #import "PVPeerIdentity.h"
+#import "PVKitVersion.h"
 #import "PVRequestHandlerProtocol.h"
 #import "PVServerSession.h"
+#import "PVWindowListHandler.h"
 
 #import <TargetConditionals.h>
 
@@ -48,7 +55,10 @@ static NSString *PVStringByTrimmingToUTF8ByteLength(NSString *string, NSUInteger
 
 static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
     NSString *name = baseName.length ? baseName : @"PickView";
-    NSString *peerID = [PVPeerIdentity sharedIdentity].uuid;
+    PVPeerIdentity *identity = [PVPeerIdentity localIdentityWithProtocolVersion:PVServerProtocolVersion
+                                                        supportedPeerVersionMin:PVServerSupportedPeerVersionMin
+                                                        supportedPeerVersionMax:PVServerSupportedPeerVersionMax];
+    NSString *peerID = identity.uuid;
     if (!peerID.length || [name containsString:peerID]) {
         return name;
     }
@@ -71,6 +81,7 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 @property (nonatomic, strong) NSMutableArray<PVServerSession *> *sessions;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVServerSession *> *sessionsDict;
 @property (nonatomic, strong) NSMutableArray<id<PVRequestHandlerProtocol>> *customHandlers;
+@property (nonatomic, strong) id<PVHierarchyProvider> hierarchyProvider;
 @property (nonatomic, assign, getter=isRunning) BOOL running;
 @end
 
@@ -92,6 +103,7 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
         _sessions = [NSMutableArray array];
         _customHandlers = [NSMutableArray array];
         _sessionsDict = [NSMutableDictionary dictionary];
+        _hierarchyProvider = [self makeDefaultHierarchyProvider];
     }
     return self;
 }
@@ -164,8 +176,21 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
     if (self.configuration.enableAppInfoHandler) {
         [handlers addObject:[[PVAppInfoHandler alloc] init]];
     }
+    if (self.configuration.enableHierarchyHandler) {
+        [handlers addObject:[[PVWindowListHandler alloc] initWithProvider:self.hierarchyProvider]];
+        [handlers addObject:[[PVHierarchyHandler alloc] initWithProvider:self.hierarchyProvider]];
+        [handlers addObject:[[PVHierarchyDetailsHandler alloc] initWithProvider:self.hierarchyProvider]];
+    }
     [handlers addObjectsFromArray:self.customHandlers];
     return [[PVCompositeRequestHandler alloc] initWithHandlers:handlers];
+}
+
+- (id<PVHierarchyProvider>)makeDefaultHierarchyProvider {
+#if TARGET_OS_IPHONE
+    return [[PVIOSHierarchyProvider alloc] init];
+#else
+    return [[PVMacHierarchyProvider alloc] init];
+#endif
 }
 
 - (void)startListener:(id<PVListenerProtocol>)listener {

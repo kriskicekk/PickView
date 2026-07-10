@@ -30,7 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, copy, readonly) NSString *supportedPeerVersionMax;
 
-+ (instancetype)sharedIdentity;
++ (instancetype)localIdentityWithProtocolVersion:(NSString *)protocolVersion
+                          supportedPeerVersionMin:(NSString *)supportedPeerVersionMin
+                          supportedPeerVersionMax:(NSString *)supportedPeerVersionMax;
 + (nullable instancetype)identityWithData:(NSData *)data error:(NSError * _Nullable * _Nullable)error;
 + (instancetype)identityWithDictionary:(NSDictionary<NSString *, id> *)dictionary;
 - (instancetype)initWithDictionary:(NSDictionary<NSString *, id> *)dictionary;

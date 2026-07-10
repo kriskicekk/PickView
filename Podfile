@@ -5,11 +5,14 @@ inhibit_all_warnings!
 target 'PickViewiOS' do
   platform :ios, '14.0'
   project 'PickView.xcodeproj'
+  pod 'PickViewCore', :path => '.'
   pod 'PeerTalk', :git => 'https://github.com/rsms/peertalk.git', :branch => 'master'
 end
 
 target 'PickViewMac' do
   platform :osx, '11.0'
   project 'PickView.xcodeproj'
+  pod 'PickViewCore', :path => '.'
   pod 'PeerTalk', :git => 'https://github.com/rsms/peertalk.git', :branch => 'master'
+  pod 'ReactiveObjC', '3.1.0'
 end

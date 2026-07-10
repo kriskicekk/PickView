@@ -7,11 +7,8 @@
 
 #import "PVPeerIdentity.h"
 #import "PVErrorCode.h"
-#import "PVKitVersion.h"
 #import "PVPeerIdentityConstant.h"
 #import "PVUtils.h"
-
-#import <TargetConditionals.h>
 
 @interface PVPeerIdentity()
 
@@ -85,26 +82,25 @@ static void PVPeerIdentityAssignError(NSError **error, NSString *reason) {
     return self;
 }
 
-+ (instancetype)sharedIdentity {
-    static PVPeerIdentity *shared;
++ (instancetype)localIdentityWithProtocolVersion:(NSString *)protocolVersion
+                          supportedPeerVersionMin:(NSString *)supportedPeerVersionMin
+                          supportedPeerVersionMax:(NSString *)supportedPeerVersionMax {
+    static NSString *sharedPeerID;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        shared = [[PVPeerIdentity alloc] init];
-        shared.bundleID = PVUtils.bundleID;
-        shared.deviceName = PVUtils.deviceName;
-        shared.appName = PVUtils.appName;
-        shared.systemVersion = PVUtils.systemVersion;
-#if TARGET_OS_IPHONE
-        shared.protocolVersion = PVServerProtocolVersion;
-        shared.supportedPeerVersionMin = PVServerSupportedPeerVersionMin;
-        shared.supportedPeerVersionMax = PVServerSupportedPeerVersionMax;
-#else
-        shared.protocolVersion = PVClientProtocolVersion;
-        shared.supportedPeerVersionMin = PVClientSupportedPeerVersionMin;
-        shared.supportedPeerVersionMax = PVClientSupportedPeerVersionMax;
-#endif
+        sharedPeerID = NSUUID.UUID.UUIDString;
     });
-    return shared;
+
+    PVPeerIdentity *identity = [[PVPeerIdentity alloc] init];
+    identity.uuid = sharedPeerID;
+    identity.bundleID = PVUtils.bundleID;
+    identity.deviceName = PVUtils.deviceName;
+    identity.appName = PVUtils.appName;
+    identity.systemVersion = PVUtils.systemVersion;
+    identity.protocolVersion = protocolVersion;
+    identity.supportedPeerVersionMin = supportedPeerVersionMin;
+    identity.supportedPeerVersionMax = supportedPeerVersionMax;
+    return identity;
 }
 
 + (instancetype)identityWithDictionary:(NSDictionary<NSString *, id> *)dictionary {

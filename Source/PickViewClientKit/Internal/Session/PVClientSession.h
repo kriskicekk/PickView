@@ -51,6 +51,7 @@ typedef NS_ENUM(NSUInteger, PVClientSessionState) {
         timeoutInterval:(NSTimeInterval)timeoutInterval
              completion:(void (^)(NSData * _Nullable payload, NSError * _Nullable error))completion;
 - (void)sendPushType:(uint32_t)type payload:(nullable NSData *)payload completion:(nullable void (^)(NSError * _Nullable error))completion;
+- (void)cancelPendingRequestsWithType:(uint32_t)type;
 - (void)close;
 
 @end

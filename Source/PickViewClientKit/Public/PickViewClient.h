@@ -14,6 +14,9 @@
 @class PickViewClient;
 @class PickViewClientConfiguration;
 @class PVClientSessionManager;
+@class PVDisplayItemDetail;
+@class PVHierarchyInfo;
+@class PVWindowInfo;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pickViewClient:(PickViewClient *)client didDisconnectEndpoint:(id<PVEndpointProtocol>)endpoint reason:(NSString *)reason;
 - (void)pickViewClient:(PickViewClient *)client didReceiveEcho:(NSString *)echo fromEndpoint:(id<PVEndpointProtocol>)endpoint;
 - (void)pickViewClientDidUpdateLANSessions:(PickViewClient *)client;
+- (void)pickViewClient:(PickViewClient *)client didReceiveWindowInfos:(NSArray<PVWindowInfo *> *)windowInfos endpointIdentifier:(NSString *)endpointIdentifier;
+- (void)pickViewClient:(PickViewClient *)client didReceiveHierarchy:(PVHierarchyInfo *)hierarchy endpointIdentifier:(NSString *)endpointIdentifier;
+- (void)pickViewClient:(PickViewClient *)client didReceiveDisplayItemDetails:(NSArray<PVDisplayItemDetail *> *)details endpointIdentifier:(NSString *)endpointIdentifier;
+- (void)pickViewClient:(PickViewClient *)client didFailInspectionRequestForEndpointIdentifier:(NSString *)endpointIdentifier error:(NSError *)error;
 
 @end
 
@@ -39,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)startScanningWithConfiguration:(nullable PickViewClientConfiguration *)configuration;
 - (void)scanNow;
 - (void)connectToLANEndpointIdentifier:(NSString *)endpointIdentifier;
+- (void)requestWindowListForEndpointIdentifier:(NSString *)endpointIdentifier;
+- (void)requestHierarchyForEndpointIdentifier:(NSString *)endpointIdentifier windowIdentifier:(nullable NSString *)windowIdentifier;
+- (void)requestHierarchyDetailsForEndpointIdentifier:(NSString *)endpointIdentifier displayItemIdentifiers:(NSArray<NSString *> *)displayItemIdentifiers;
 - (void)stop;
 
 @end

@@ -19,6 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) uint32_t type;
 @property (nonatomic, assign) uint32_t tag;
 @property (nonatomic, assign) NSTimeInterval timeoutInterval;
+@property (nonatomic, assign) NSUInteger receivedDataCount;
+@property (nonatomic, assign) NSUInteger timeoutToken;
 @property (nonatomic, copy) PVPendingRequestCompletion completion;
 
 - (instancetype)initWithType:(uint32_t)type

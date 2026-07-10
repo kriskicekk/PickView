@@ -1,0 +1,251 @@
+//
+//  PVAttrIdentifiers.h
+//  PickView
+//
+//  Created by kris cheng on 2026/7/9.
+//
+
+#import <Foundation/Foundation.h>
+
+#pragma mark - Group
+
+typedef NSString * PVAttrGroupIdentifier;
+
+extern PVAttrGroupIdentifier const PVAttrGroup_None;
+extern PVAttrGroupIdentifier const PVAttrGroup_Class;
+extern PVAttrGroupIdentifier const PVAttrGroup_Relation;
+extern PVAttrGroupIdentifier const PVAttrGroup_Layout;
+extern PVAttrGroupIdentifier const PVAttrGroup_AutoLayout;
+extern PVAttrGroupIdentifier const PVAttrGroup_ViewLayer;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIImageView;
+extern PVAttrGroupIdentifier const PVAttrGroup_UILabel;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIControl;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIButton;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIScrollView;
+extern PVAttrGroupIdentifier const PVAttrGroup_UITableView;
+extern PVAttrGroupIdentifier const PVAttrGroup_UITextView;
+extern PVAttrGroupIdentifier const PVAttrGroup_UITextField;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIVisualEffectView;
+extern PVAttrGroupIdentifier const PVAttrGroup_UIStackView;
+
+extern PVAttrGroupIdentifier const PVAttrGroup_UserCustom;
+
+#pragma mark - Section
+
+typedef NSString * PVAttrSectionIdentifier;
+
+extern PVAttrSectionIdentifier const PVAttrSec_None;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UserCustom;
+
+extern PVAttrSectionIdentifier const PVAttrSec_Class_Class;
+
+extern PVAttrSectionIdentifier const PVAttrSec_Relation_Relation;
+
+extern PVAttrSectionIdentifier const PVAttrSec_Layout_Frame;
+extern PVAttrSectionIdentifier const PVAttrSec_Layout_Bounds;
+extern PVAttrSectionIdentifier const PVAttrSec_Layout_SafeArea;
+extern PVAttrSectionIdentifier const PVAttrSec_Layout_Position;
+extern PVAttrSectionIdentifier const PVAttrSec_Layout_AnchorPoint;
+
+extern PVAttrSectionIdentifier const PVAttrSec_AutoLayout_Hugging;
+extern PVAttrSectionIdentifier const PVAttrSec_AutoLayout_Resistance;
+extern PVAttrSectionIdentifier const PVAttrSec_AutoLayout_Constraints;
+extern PVAttrSectionIdentifier const PVAttrSec_AutoLayout_IntrinsicSize;
+
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_Visibility;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_InterationAndMasks;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_Corner;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_BgColor;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_Border;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_Shadow;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_ContentMode;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_TintColor;
+extern PVAttrSectionIdentifier const PVAttrSec_ViewLayer_Tag;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIImageView_Name;
+extern PVAttrSectionIdentifier const PVAttrSec_UIImageView_Open;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_Text;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_Font;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_NumberOfLines;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_TextColor;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_BreakMode;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_Alignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UILabel_CanAdjustFont;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIControl_EnabledSelected;
+extern PVAttrSectionIdentifier const PVAttrSec_UIControl_VerAlignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UIControl_HorAlignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UIControl_QMUIOutsideEdge;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIButton_ContentInsets;
+extern PVAttrSectionIdentifier const PVAttrSec_UIButton_TitleInsets;
+extern PVAttrSectionIdentifier const PVAttrSec_UIButton_ImageInsets;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_ContentInset;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_AdjustedInset;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_IndicatorInset;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_Offset;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_ContentSize;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_Behavior;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_ShowsIndicator;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_Bounce;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_ScrollPaging;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_ContentTouches;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_Zoom;
+extern PVAttrSectionIdentifier const PVAttrSec_UIScrollView_QMUIInitialInset;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_Style;
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_SectionsNumber;
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_RowsNumber;
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_SeparatorStyle;
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_SeparatorColor;
+extern PVAttrSectionIdentifier const PVAttrSec_UITableView_SeparatorInset;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_Basic;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_Text;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_Font;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_TextColor;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_Alignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextView_ContainerInset;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_Text;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_Placeholder;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_Font;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_TextColor;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_Alignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_Clears;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_CanAdjustFont;
+extern PVAttrSectionIdentifier const PVAttrSec_UITextField_ClearButtonMode;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIVisualEffectView_Style;
+extern PVAttrSectionIdentifier const PVAttrSec_UIVisualEffectView_QMUIForegroundColor;
+
+extern PVAttrSectionIdentifier const PVAttrSec_UIStackView_Axis;
+extern PVAttrSectionIdentifier const PVAttrSec_UIStackView_Distribution;
+extern PVAttrSectionIdentifier const PVAttrSec_UIStackView_Alignment;
+extern PVAttrSectionIdentifier const PVAttrSec_UIStackView_Spacing;
+
+#pragma mark - Attr
+
+typedef NSString * PVAttrIdentifier;
+
+extern PVAttrIdentifier const PVAttr_None;
+
+/// 用户自定义的
+extern PVAttrIdentifier const PVAttr_UserCustom;
+
+extern PVAttrIdentifier const PVAttr_Class_Class_Class;
+
+extern PVAttrIdentifier const PVAttr_Relation_Relation_Relation;
+
+extern PVAttrIdentifier const PVAttr_Layout_Frame_Frame;
+extern PVAttrIdentifier const PVAttr_Layout_Bounds_Bounds;
+extern PVAttrIdentifier const PVAttr_Layout_SafeArea_SafeArea;
+extern PVAttrIdentifier const PVAttr_Layout_Position_Position;
+extern PVAttrIdentifier const PVAttr_Layout_AnchorPoint_AnchorPoint;
+
+extern PVAttrIdentifier const PVAttr_AutoLayout_Hugging_Hor;
+extern PVAttrIdentifier const PVAttr_AutoLayout_Hugging_Ver;
+extern PVAttrIdentifier const PVAttr_AutoLayout_Resistance_Hor;
+extern PVAttrIdentifier const PVAttr_AutoLayout_Resistance_Ver;
+extern PVAttrIdentifier const PVAttr_AutoLayout_Constraints_Constraints;
+extern PVAttrIdentifier const PVAttr_AutoLayout_IntrinsicSize_Size;
+
+extern PVAttrIdentifier const PVAttr_ViewLayer_Visibility_Hidden;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Visibility_Opacity;
+extern PVAttrIdentifier const PVAttr_ViewLayer_InterationAndMasks_Interaction;
+extern PVAttrIdentifier const PVAttr_ViewLayer_InterationAndMasks_MasksToBounds;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Corner_Radius;
+extern PVAttrIdentifier const PVAttr_ViewLayer_BgColor_BgColor;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Border_Color;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Border_Width;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Shadow_Color;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Shadow_Opacity;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Shadow_Radius;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Shadow_OffsetW;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Shadow_OffsetH;
+extern PVAttrIdentifier const PVAttr_ViewLayer_ContentMode_Mode;
+extern PVAttrIdentifier const PVAttr_ViewLayer_TintColor_Color;
+extern PVAttrIdentifier const PVAttr_ViewLayer_TintColor_Mode;
+extern PVAttrIdentifier const PVAttr_ViewLayer_Tag_Tag;
+
+extern PVAttrIdentifier const PVAttr_UIImageView_Name_Name;
+extern PVAttrIdentifier const PVAttr_UIImageView_Open_Open;
+
+extern PVAttrIdentifier const PVAttr_UILabel_Text_Text;
+extern PVAttrIdentifier const PVAttr_UILabel_Font_Name;
+extern PVAttrIdentifier const PVAttr_UILabel_Font_Size;
+extern PVAttrIdentifier const PVAttr_UILabel_NumberOfLines_NumberOfLines;
+extern PVAttrIdentifier const PVAttr_UILabel_TextColor_Color;
+extern PVAttrIdentifier const PVAttr_UILabel_Alignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UILabel_BreakMode_Mode;
+extern PVAttrIdentifier const PVAttr_UILabel_CanAdjustFont_CanAdjustFont;
+
+extern PVAttrIdentifier const PVAttr_UIControl_EnabledSelected_Enabled;
+extern PVAttrIdentifier const PVAttr_UIControl_EnabledSelected_Selected;
+extern PVAttrIdentifier const PVAttr_UIControl_VerAlignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UIControl_HorAlignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UIControl_QMUIOutsideEdge_Edge;
+
+extern PVAttrIdentifier const PVAttr_UIButton_ContentInsets_Insets;
+extern PVAttrIdentifier const PVAttr_UIButton_TitleInsets_Insets;
+extern PVAttrIdentifier const PVAttr_UIButton_ImageInsets_Insets;
+
+extern PVAttrIdentifier const PVAttr_UIScrollView_Offset_Offset;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ContentSize_Size;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ContentInset_Inset;
+extern PVAttrIdentifier const PVAttr_UIScrollView_AdjustedInset_Inset;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Behavior_Behavior;
+extern PVAttrIdentifier const PVAttr_UIScrollView_IndicatorInset_Inset;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ScrollPaging_ScrollEnabled;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ScrollPaging_PagingEnabled;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Bounce_Ver;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Bounce_Hor;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ShowsIndicator_Hor;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ShowsIndicator_Ver;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ContentTouches_Delay;
+extern PVAttrIdentifier const PVAttr_UIScrollView_ContentTouches_CanCancel;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Zoom_MinScale;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Zoom_MaxScale;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Zoom_Scale;
+extern PVAttrIdentifier const PVAttr_UIScrollView_Zoom_Bounce;
+extern PVAttrIdentifier const PVAttr_UIScrollView_QMUIInitialInset_Inset;
+
+extern PVAttrIdentifier const PVAttr_UITableView_Style_Style;
+extern PVAttrIdentifier const PVAttr_UITableView_SectionsNumber_Number;
+extern PVAttrIdentifier const PVAttr_UITableView_RowsNumber_Number;
+extern PVAttrIdentifier const PVAttr_UITableView_SeparatorInset_Inset;
+extern PVAttrIdentifier const PVAttr_UITableView_SeparatorColor_Color;
+extern PVAttrIdentifier const PVAttr_UITableView_SeparatorStyle_Style;
+
+extern PVAttrIdentifier const PVAttr_UITextView_Font_Name;
+extern PVAttrIdentifier const PVAttr_UITextView_Font_Size;
+extern PVAttrIdentifier const PVAttr_UITextView_Basic_Editable;
+extern PVAttrIdentifier const PVAttr_UITextView_Basic_Selectable;
+extern PVAttrIdentifier const PVAttr_UITextView_Text_Text;
+extern PVAttrIdentifier const PVAttr_UITextView_TextColor_Color;
+extern PVAttrIdentifier const PVAttr_UITextView_Alignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UITextView_ContainerInset_Inset;
+
+extern PVAttrIdentifier const PVAttr_UITextField_Text_Text;
+extern PVAttrIdentifier const PVAttr_UITextField_Placeholder_Placeholder;
+extern PVAttrIdentifier const PVAttr_UITextField_Font_Name;
+extern PVAttrIdentifier const PVAttr_UITextField_Font_Size;
+extern PVAttrIdentifier const PVAttr_UITextField_TextColor_Color;
+extern PVAttrIdentifier const PVAttr_UITextField_Alignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UITextField_Clears_ClearsOnBeginEditing;
+extern PVAttrIdentifier const PVAttr_UITextField_Clears_ClearsOnInsertion;
+extern PVAttrIdentifier const PVAttr_UITextField_CanAdjustFont_CanAdjustFont;
+extern PVAttrIdentifier const PVAttr_UITextField_CanAdjustFont_MinSize;
+extern PVAttrIdentifier const PVAttr_UITextField_ClearButtonMode_Mode;
+
+extern PVAttrIdentifier const PVAttr_UIVisualEffectView_Style_Style;
+extern PVAttrIdentifier const PVAttr_UIVisualEffectView_QMUIForegroundColor_Color;
+
+extern PVAttrIdentifier const PVAttr_UIStackView_Axis_Axis;
+extern PVAttrIdentifier const PVAttr_UIStackView_Distribution_Distribution;
+extern PVAttrIdentifier const PVAttr_UIStackView_Alignment_Alignment;
+extern PVAttrIdentifier const PVAttr_UIStackView_Spacing_Spacing;
+

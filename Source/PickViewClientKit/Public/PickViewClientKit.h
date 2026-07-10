@@ -12,5 +12,9 @@
 #import "PickViewClientConfiguration.h"
 #import "PVClientSession.h"
 #import "PVClientSessionManager.h"
+#import "PVDisplayItem.h"
+#import "PVDisplayItemDetail.h"
+#import "PVHierarchyInfo.h"
+#import "PVWindowInfo.h"
 
 #endif /* PickViewClientKit_h */

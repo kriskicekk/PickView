@@ -17,6 +17,7 @@ typedef NS_ENUM(NSInteger, PVErrorCode) {
     PVErrorCodeDisconnected = -100,
     PVErrorCodeTimeout = -101,
     PVErrorCodeIncompatibleVersion = -102,
+    PVErrorCodeDiscarded = -103,
     PVErrorCodePeerTalk = -200,
     PVErrorCodeUnsupportedEndpoint = -300
 };

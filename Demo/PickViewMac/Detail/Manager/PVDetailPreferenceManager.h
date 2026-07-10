@@ -1,0 +1,118 @@
+//
+//  PVDetailPreferenceManager.h
+//  PickViewMac
+//
+//  Created by kris cheng on 2026/7/9.
+//
+
+#import <Foundation/Foundation.h>
+#import "PVAttributesGroup.h"
+#import "PVDetailExportManager.h"
+#import "PVDetailMsgAttribute.h"
+
+extern NSString *const PVDetailWindowSizeName_Dynamic;
+extern NSString *const PVDetailWindowSizeName_Static;
+
+/// 初始的 preview scale
+extern const CGFloat PVDetailInitialPreviewScale;
+
+typedef NS_ENUM(NSInteger, PVPreferredAppearanceType) {
+    PVPreferredAppearanceTypeDark,
+    PVPreferredAppearanceTypeLight,
+    PVPreferredAppearanceTypeSystem
+};
+
+
+typedef NS_ENUM(NSInteger, PVDoubleClickBehavior) {
+    PVDoubleClickBehaviorCollapse,
+    PVDoubleClickBehaviorFocus
+};
+
+typedef NS_ENUM(NSInteger, PVPreferredCallStackType) {
+    PVPreferredCallStackTypeDefault,    // 格式化 + 简略
+    PVPreferredCallStackTypeFormattedCompletely, // 格式化 + 完整
+    PVPreferredCallStackTypeRaw    // 原始堆栈
+};
+
+typedef NS_ENUM(NSInteger, PVMeasureState) {
+    PVMeasureState_no,    // 没有处于测距模式
+    PVMeasureState_unlocked, // 处于测距模式，但未锁定，此时松开手指就会导致退出测距模式
+    PVMeasureState_locked    // 处于测距模式，且锁定，此时松开手指不会退出测距模式
+};
+
+@interface PVDetailPreferenceManager : NSObject
+
++ (instancetype)mainManager;
+
+/// 默认为 NO
+@property(nonatomic, assign) BOOL shouldStoreToLocal;
+
+/// 仅在 macOS 10.14 及以后上生效
+@property(nonatomic, assign) PVPreferredAppearanceType appearanceType;
+
+@property(nonatomic, assign) PVDoubleClickBehavior doubleClickBehavior;
+
+/// 有效值为 0 ～ 4
+@property(nonatomic, assign) NSInteger expansionIndex;
+
+@property(nonatomic, strong, readonly) PVDetailBOOLMsgAttribute *showOutline;
+
+@property(nonatomic, strong, readonly) PVDetailBOOLMsgAttribute *showHiddenItems;
+
+// 范围是 0 ～ 1
+@property(nonatomic, strong, readonly) PVDetailDoubleMsgAttribute *zInterspace;
+
+@property(nonatomic, assign) BOOL enableReport;
+
+@property(nonatomic, assign) BOOL rgbaFormat;
+
+/// 0 ~ 2
+@property(nonatomic, assign) NSInteger imageContrastLevel;
+
+/// 是否自动将选中的 UIView/CALayer 作为控制台的目标对象
+@property(nonatomic, assign) BOOL syncConsoleTarget;
+
+// 被折叠的 AttrGroup
+@property(nonatomic, copy) NSArray<PVAttrGroupIdentifier> *collapsedAttrGroups;
+
+@property(nonatomic, assign) CGFloat preferredExportCompression;
+
+@property(nonatomic, strong, readonly) PVDetailBOOLMsgAttribute *freeRotation;
+
+@property(nonatomic, strong, readonly) PVDetailBOOLMsgAttribute *fastMode;
+
+/// 上次接收到 iOS app 里传过来的 color config 和 collapsedClasses 信息的时间，用来统计
+@property(nonatomic, assign) NSTimeInterval receivingConfigTime_Color;
+@property(nonatomic, assign) NSTimeInterval receivingConfigTime_Class;
+
+/// 返回某个 section 是否应该被显示在主界面上
+- (BOOL)isSectionShowing:(PVAttrSectionIdentifier)secID;
+/// 把某个 section 显示在主界面上
+- (void)showSection:(PVAttrSectionIdentifier)secID;
+/// 把某个 section 从主界面上移除
+- (void)hideSection:(PVAttrSectionIdentifier)secID;
+/// 当某个 section 被添加或移除时，会发出该通知
+extern NSString *const NotificationName_DidChangeSectionShowing;
+
+#pragma mark - 以下属性不会持久化
+
+@property(nonatomic, assign) PVPreferredCallStackType callStackType;
+
+@property(nonatomic, strong, readonly) PVDetailIntegerMsgAttribute *previewDimension;
+
+@property(nonatomic, strong, readonly) PVDetailDoubleMsgAttribute *previewScale;
+
+/// 参数是 PVMeasureState
+@property(nonatomic, strong, readonly) PVDetailIntegerMsgAttribute *measureState;
+
+/// 是否用户正在按住 cmd 键而处于快速选择模式
+@property(nonatomic, strong, readonly) PVDetailBOOLMsgAttribute *isQuickSelecting;
+
+/// 如果之前没弹过“双击图层时你希望发生什么？”这个框，则这个方法会弹框且返回 YES。否则该方法什么都不会做且返回 NO
++ (BOOL)popupToAskDoubleClickBehaviorIfNeededWithWindow:(NSWindow *)window;
+
+- (void)reset;
+
+- (void)reportStatistics;
+
+@end

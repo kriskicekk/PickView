@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)canHandleRequestType:(uint32_t)type;
 - (void)handleRequestType:(uint32_t)type
                   payload:(nullable NSData *)payload
-               completion:(void (^)(NSData * _Nullable responsePayload, NSError * _Nullable error))completion;
+               completion:(nullable void (^)(NSData * _Nullable responsePayload, NSError * _Nullable error))completion;
 
 @end
 

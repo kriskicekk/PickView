@@ -1,13 +1,23 @@
 PODS:
   - PeerTalk (0.1.0)
+  - PickViewCore (0.1.0)
+  - ReactiveObjC (3.1.0)
 
 DEPENDENCIES:
   - PeerTalk (from `https://github.com/rsms/peertalk.git`, branch `master`)
+  - PickViewCore (from `.`)
+  - ReactiveObjC (= 3.1.0)
+
+SPEC REPOS:
+  trunk:
+    - ReactiveObjC
 
 EXTERNAL SOURCES:
   PeerTalk:
     :branch: master
     :git: https://github.com/rsms/peertalk.git
+  PickViewCore:
+    :path: "."
 
 CHECKOUT OPTIONS:
   PeerTalk:
@@ -16,7 +26,9 @@ CHECKOUT OPTIONS:
 
 SPEC CHECKSUMS:
   PeerTalk: 7ad12ee847f28748f8996afdae3add70f7670306
+  PickViewCore: 94448901e8b2596f2a2c217c217fc25fb6d247c6
+  ReactiveObjC: 2a38ea15335de4119d8b17caf1db1484f61db902
 
-PODFILE CHECKSUM: 968f8216645951f7e50f003b962f766c309a2425
+PODFILE CHECKSUM: 7e80c4ec4b305e5742b360b19ea9f5a43cc98684
 
 COCOAPODS: 1.16.2
