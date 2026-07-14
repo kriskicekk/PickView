@@ -1503,10 +1503,6 @@
     if (view.isHidden || CGRectIsEmpty(view.bounds) || ![self canCreateImageContextWithSize:view.bounds.size]) {
         return nil;
     }
-    if (!includeSubviews && !view.subviews.count) {
-        return nil;
-    }
-
     NSArray<UIView *> *hiddenSubviews = includeSubviews ? @[] : [self hideVisibleSubviewsOfView:view];
     CGFloat renderScale = [self renderScaleForView:view lowQuality:lowQuality];
     UIGraphicsBeginImageContextWithOptions(view.bounds.size, NO, renderScale);
@@ -1529,10 +1525,6 @@
     if (layer.isHidden || CGRectIsEmpty(layer.bounds) || ![self canCreateImageContextWithSize:layer.bounds.size]) {
         return nil;
     }
-    if (!includeSublayers && !layer.sublayers.count) {
-        return nil;
-    }
-
     UIView *hostView = layer.pv_inspect_hostView;
     if (hostView) {
         return [self imageDataForView:hostView includeSubviews:includeSublayers lowQuality:lowQuality];
@@ -1633,7 +1625,10 @@
     item.hidden = layer.isHidden;
     item.alpha = layer.opacity;
     item.attributesGroupList = [PVAttrGroupsMaker attrGroupsForLayer:layer];
-    item.shouldCaptureImage = [self shouldCaptureImageForLayer:layer];
+    // Flutter may paint all pixels into its own Metal-backed layer without
+    // exposing UIKit subviews. Keep the host as a screenshot source when VM
+    // Inspector is unavailable.
+    item.shouldCaptureImage = isFlutterHost || [self shouldCaptureImageForLayer:layer];
 
     if (view) {
         item.viewObject = [self identityForObject:view prefix:@"ios-view"];
