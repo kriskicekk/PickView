@@ -47,6 +47,8 @@ static NSValue *PVValueFromCGRect(CGRect rect) {
     [coder encodeBool:self.hidden forKey:@"hidden"];
     [coder encodeDouble:self.alpha forKey:@"alpha"];
     [coder encodeInteger:self.failureCode forKey:@"failureCode"];
+    [coder encodeInteger:self.contentKind forKey:@"contentKind"];
+    [coder encodeObject:self.flutterDetail forKey:@"flutterDetail"];
 
     [coder encodeObject:@(self.displayItemOid) forKey:@"displayItemOid"];
     [coder encodeObject:self.groupImageData ?: self.groupScreenshot.pv_inspect_data forKey:@"groupScreenshot"];
@@ -77,6 +79,8 @@ static NSValue *PVValueFromCGRect(CGRect rect) {
         _hidden = [coder decodeBoolForKey:@"hidden"];
         _alpha = [coder containsValueForKey:@"alpha"] ? (CGFloat)[coder decodeDoubleForKey:@"alpha"] : 1;
         _failureCode = [coder decodeIntegerForKey:@"failureCode"];
+        _contentKind = [coder containsValueForKey:@"contentKind"] ? [coder decodeIntegerForKey:@"contentKind"] : PVDisplayItemContentKindNative;
+        _flutterDetail = [coder decodeObjectForKey:@"flutterDetail"];
 
         _displayItemOid = [[coder decodeObjectForKey:@"displayItemOid"] unsignedLongValue];
         _frameValue = [coder decodeObjectForKey:@"frameValue"] ?: PVValueFromCGRect(_frame);
@@ -104,6 +108,8 @@ static NSValue *PVValueFromCGRect(CGRect rect) {
     detail.hidden = self.hidden;
     detail.alpha = self.alpha;
     detail.failureCode = self.failureCode;
+    detail.contentKind = self.contentKind;
+    detail.flutterDetail = self.flutterDetail.copy;
     detail.displayItemOid = self.displayItemOid;
     detail.groupScreenshot = self.groupScreenshot;
     detail.soloScreenshot = self.soloScreenshot;

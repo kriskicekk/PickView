@@ -59,6 +59,10 @@
     [coder encodeObject:self.viewClassName forKey:@"viewClassName"];
     [coder encodeObject:self.layerClassName forKey:@"layerClassName"];
     [coder encodeObject:self.backgroundColorText forKey:@"backgroundColorText"];
+    [coder encodeInteger:self.contentKind forKey:@"contentKind"];
+    [coder encodeInteger:self.flutterLoadState forKey:@"flutterLoadState"];
+    [coder encodeObject:self.flutterReference forKey:@"flutterReference"];
+    [coder encodeObject:self.flutterDetail forKey:@"flutterDetail"];
     [coder encodeObject:self.customInfo forKey:@"customInfo"];
     [coder encodeObject:self.subitems forKey:@"subitems"];
     [coder encodeObject:self.subitems forKey:@"children"];
@@ -111,6 +115,10 @@
         _viewClassName = [[coder decodeObjectForKey:@"viewClassName"] copy] ?: @"";
         _layerClassName = [[coder decodeObjectForKey:@"layerClassName"] copy] ?: @"";
         _backgroundColorText = [[coder decodeObjectForKey:@"backgroundColorText"] copy] ?: @"";
+        _contentKind = [coder containsValueForKey:@"contentKind"] ? [coder decodeIntegerForKey:@"contentKind"] : PVDisplayItemContentKindNative;
+        _flutterLoadState = [coder containsValueForKey:@"flutterLoadState"] ? [coder decodeIntegerForKey:@"flutterLoadState"] : PVFlutterLoadStateNone;
+        _flutterReference = [coder decodeObjectForKey:@"flutterReference"];
+        _flutterDetail = [coder decodeObjectForKey:@"flutterDetail"];
         _customInfo = [coder decodeObjectForKey:@"customInfo"];
         NSArray *decodedSubitems = [coder decodeObjectForKey:@"subitems"] ?: [coder decodeObjectForKey:@"children"];
         self.subitems = decodedSubitems ?: @[];
@@ -176,6 +184,10 @@
     item.viewClassName = self.viewClassName;
     item.layerClassName = self.layerClassName;
     item.backgroundColorText = self.backgroundColorText;
+    item.contentKind = self.contentKind;
+    item.flutterLoadState = self.flutterLoadState;
+    item.flutterReference = self.flutterReference.copy;
+    item.flutterDetail = self.flutterDetail.copy;
     item.customInfo = self.customInfo.copy;
     item.isHidden = self.isHidden;
     item.alpha = self.alpha;

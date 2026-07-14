@@ -11,6 +11,7 @@
 #import "PVCustomDisplayItemInfo.h"
 #import "PVInspectionDefines.h"
 #import "PVObject.h"
+#import "PVFlutterInspectionModel.h"
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
@@ -18,6 +19,8 @@
 @class PVAttributesGroup;
 @class PVEventHandler;
 @class PVDisplayItem;
+@class PVFlutterNodeDetail;
+@class PVFlutterNodeReference;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -64,6 +67,10 @@ typedef NS_ENUM(NSUInteger, PVDisplayItemProperty) {
 @property (nonatomic, copy) NSString *layerClassName;
 @property (nonatomic, copy) NSString *backgroundColorText;
 @property (nonatomic, copy) NSArray<PVDisplayItem *> *children;
+@property (nonatomic, assign) PVDisplayItemContentKind contentKind;
+@property (nonatomic, assign) PVFlutterLoadState flutterLoadState;
+@property (nonatomic, strong, nullable) PVFlutterNodeReference *flutterReference;
+@property (nonatomic, strong, nullable) PVFlutterNodeDetail *flutterDetail;
 
 @property (nonatomic, strong, nullable) PVCustomDisplayItemInfo *customInfo;
 @property (nonatomic, copy) NSArray<PVDisplayItem *> *subitems;

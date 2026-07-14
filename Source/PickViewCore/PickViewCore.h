@@ -44,6 +44,7 @@
 #import "PVDisplayItemDetail.h"
 #import "PVDisplayItemDetailRequest.h"
 #import "PVEventHandler.h"
+#import "PVFlutterInspectionModel.h"
 #import "PVHierarchyFile.h"
 #import "PVHierarchyInfo.h"
 #import "PVInspectionDefines.h"

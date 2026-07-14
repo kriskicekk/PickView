@@ -9,12 +9,14 @@
 #define PVDisplayItemDetail_h
 
 #import "PVInspectionDefines.h"
+#import "PVFlutterInspectionModel.h"
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 
 @class PVAttributesGroup;
 @class PVDisplayItem;
+@class PVFlutterNodeDetail;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -41,6 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSArray<PVAttributesGroup *> *customAttrGroupList;
 @property (nonatomic, copy, nullable) NSArray<PVDisplayItem *> *subitems;
 @property (nonatomic, assign) NSInteger failureCode;
+@property (nonatomic, assign) PVDisplayItemContentKind contentKind;
+@property (nonatomic, strong, nullable) PVFlutterNodeDetail *flutterDetail;
 
 @end
 
