@@ -34,6 +34,8 @@
 #import "PVUIKitAttributeAccessors.h"
 #import "PVWindowInfo.h"
 
+#import "PVFlutterHierarchyCoordinator.h"
+
 #import <objc/runtime.h>
 #import <TargetConditionals.h>
 
@@ -44,6 +46,7 @@
 
 @interface PVIOSHierarchyProvider ()
 @property (nonatomic, strong) NSMapTable<NSNumber *, id> *objectRegistry;
+@property(nonatomic, strong) PVFlutterHierarchyCoordinator *flutterCoordinator;
 @end
 
 @implementation PVIOSHierarchyProvider
@@ -52,9 +55,103 @@
     self = [super init];
     if (self) {
         _objectRegistry = [NSMapTable strongToWeakObjectsMapTable];
+        _flutterCoordinator = [PVFlutterHierarchyCoordinator new];
     }
     return self;
 }
+
+#if TARGET_OS_IPHONE
+- (void)prepareHierarchyForWindowID:(NSString *)windowID
+                         completion:(void (^)(NSError *error))completion {
+    dispatch_block_t work = ^{
+        UIWindow *window = [self windowForIdentifier:windowID];
+        if (!window) {
+            NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                                 code:PVErrorCodeUnknown
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Window not found."}];
+            completion(error);
+            return;
+        }
+        [self.flutterCoordinator prepareWindow:window completion:completion];
+    };
+    if (NSThread.isMainThread) work();
+    else dispatch_async(dispatch_get_main_queue(), work);
+}
+
+- (void)detailsForDisplayItemIDs:(NSArray<NSString *> *)displayItemIDs
+                  needsSoloImage:(BOOL)needsSoloImage
+                 needsGroupImage:(BOOL)needsGroupImage
+                 lowImageQuality:(BOOL)lowImageQuality
+                      completion:(void (^)(NSArray<PVDisplayItemDetail *> *details))completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableArray<NSString *> *nativeIDs = [NSMutableArray array];
+        NSMutableArray<NSString *> *flutterIDs = [NSMutableArray array];
+        for (NSString *displayItemID in displayItemIDs) {
+            if ([self.flutterCoordinator ownsDisplayItemID:displayItemID]) {
+                [flutterIDs addObject:displayItemID];
+            } else {
+                [nativeIDs addObject:displayItemID];
+            }
+        }
+        NSMutableArray<PVDisplayItemDetail *> *results =
+            [[self detailsForDisplayItemIDsOnMainThread:nativeIDs
+                                         needsSoloImage:needsSoloImage
+                                        needsGroupImage:needsGroupImage
+                                        lowImageQuality:lowImageQuality] mutableCopy] ?: [NSMutableArray array];
+        if (flutterIDs.count == 0) {
+            completion(results.copy);
+            return;
+        }
+        [self.flutterCoordinator detailsForDisplayItemIDs:flutterIDs
+                                           needsSoloImage:needsSoloImage
+                                          needsGroupImage:needsGroupImage
+                                          lowImageQuality:lowImageQuality
+                                               completion:^(NSArray<PVDisplayItemDetail *> *details) {
+            [results addObjectsFromArray:details];
+            completion(results.copy);
+        }];
+    });
+}
+
+- (void)detailsForTaskPackages:(NSArray<PVStaticAsyncUpdateTasksPackage *> *)packages
+               lowImageQuality:(BOOL)lowImageQuality
+                    completion:(void (^)(NSArray<PVDisplayItemDetail *> *details))completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableArray<PVStaticAsyncUpdateTask *> *nativeTasks = [NSMutableArray array];
+        NSMutableArray<PVStaticAsyncUpdateTask *> *flutterTasks = [NSMutableArray array];
+        for (PVStaticAsyncUpdateTasksPackage *package in packages) {
+            for (PVStaticAsyncUpdateTask *task in package.tasks) {
+                if ([self.flutterCoordinator ownsObjectOID:task.oid]) {
+                    [flutterTasks addObject:task];
+                } else {
+                    [nativeTasks addObject:task];
+                }
+            }
+        }
+
+        NSMutableArray<PVDisplayItemDetail *> *results = [NSMutableArray array];
+        if (nativeTasks.count) {
+            PVStaticAsyncUpdateTasksPackage *nativePackage = [PVStaticAsyncUpdateTasksPackage new];
+            nativePackage.tasks = nativeTasks.copy;
+            [results addObjectsFromArray:
+                [self detailsForTaskPackagesOnMainThread:@[nativePackage]
+                                         lowImageQuality:lowImageQuality] ?: @[]];
+        }
+        if (flutterTasks.count == 0) {
+            completion(results.copy);
+            return;
+        }
+        PVStaticAsyncUpdateTasksPackage *flutterPackage = [PVStaticAsyncUpdateTasksPackage new];
+        flutterPackage.tasks = flutterTasks.copy;
+        [self.flutterCoordinator detailsForTaskPackages:@[flutterPackage]
+                                        lowImageQuality:lowImageQuality
+                                             completion:^(NSArray<PVDisplayItemDetail *> *details) {
+            [results addObjectsFromArray:details];
+            completion(results.copy);
+        }];
+    });
+}
+#endif
 
 - (NSArray<PVWindowInfo *> *)allWindows {
 #if TARGET_OS_IPHONE
@@ -1512,8 +1609,19 @@
     item.danceuiSource = [maker getDanceUISource];
 
     NSMutableArray<PVDisplayItem *> *children = [NSMutableArray arrayWithCapacity:layer.sublayers.count];
-    for (CALayer *sublayer in layer.sublayers) {
-        [children addObject:[self displayItemForLayer:sublayer]];
+    NSArray<PVDisplayItem *> *flutterItems = view
+        ? [self.flutterCoordinator virtualItemsForHostView:view] : @[];
+    if (flutterItems.count == 0) {
+        flutterItems = [self.flutterCoordinator virtualItemsForHostLayer:layer];
+    }
+    if (flutterItems.count) {
+        NSLog(@"PV_FLUTTER_HIERARCHY_ATTACHED layer=%@ view=%@ rootItems=%@",
+              layer, view, @(flutterItems.count));
+        [children addObjectsFromArray:flutterItems];
+    } else {
+        for (CALayer *sublayer in layer.sublayers) {
+            [children addObject:[self displayItemForLayer:sublayer]];
+        }
     }
     [children addObjectsFromArray:[self customDisplayItemsForLayer:layer saveAttrSetter:YES]];
     item.subitems = children.copy;

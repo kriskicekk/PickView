@@ -38,6 +38,19 @@
                completion:(void (^)(NSData * _Nullable, NSError * _Nullable))completion {
     NSString *windowID = [self windowIDFromPayload:payload];
 
+    if ([self.provider respondsToSelector:@selector(prepareHierarchyForWindowID:completion:)]) {
+        [self.provider prepareHierarchyForWindowID:windowID completion:^(NSError *preparationError) {
+            // A VM Service failure must not hide the native UIKit hierarchy.
+            [self finishHierarchyForWindowID:windowID completion:completion];
+        }];
+        return;
+    }
+    [self finishHierarchyForWindowID:windowID completion:completion];
+}
+
+- (void)finishHierarchyForWindowID:(NSString *)windowID
+                         completion:(void (^)(NSData * _Nullable, NSError * _Nullable))completion {
+
     NSError *hierarchyError = nil;
     PVHierarchyInfo *hierarchy = [self.provider hierarchyForWindowID:windowID error:&hierarchyError];
     PVResponseAttachment *attachment = hierarchy ? [PVResponseAttachment attachmentWithData:hierarchy] : [PVResponseAttachment attachmentWithError:hierarchyError ?: [self genericError]];

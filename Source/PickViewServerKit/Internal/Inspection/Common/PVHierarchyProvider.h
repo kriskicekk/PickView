@@ -49,6 +49,23 @@ NS_ASSUME_NONNULL_BEGIN
                                               enabled:(BOOL)enabled
                                                 error:(NSError * _Nullable * _Nullable)error;
 
+@optional
+
+/// Gives providers backed by an external runtime a chance to refresh their
+/// virtual hierarchy before the normal synchronous hierarchy snapshot runs.
+- (void)prepareHierarchyForWindowID:(nullable NSString *)windowID
+                         completion:(void (^)(NSError * _Nullable error))completion;
+
+- (void)detailsForDisplayItemIDs:(NSArray<NSString *> *)displayItemIDs
+                  needsSoloImage:(BOOL)needsSoloImage
+                 needsGroupImage:(BOOL)needsGroupImage
+                 lowImageQuality:(BOOL)lowImageQuality
+                      completion:(void (^)(NSArray<PVDisplayItemDetail *> *details))completion;
+
+- (void)detailsForTaskPackages:(NSArray<PVStaticAsyncUpdateTasksPackage *> *)packages
+               lowImageQuality:(BOOL)lowImageQuality
+                    completion:(void (^)(NSArray<PVDisplayItemDetail *> *details))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

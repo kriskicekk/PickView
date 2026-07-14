@@ -95,6 +95,17 @@
             return;
         } else if ([request isKindOfClass:PVDisplayItemDetailRequest.class]) {
             PVDisplayItemDetailRequest *detailRequest = request;
+            if ([self.provider respondsToSelector:@selector(detailsForDisplayItemIDs:needsSoloImage:needsGroupImage:lowImageQuality:completion:)]) {
+                [self.provider detailsForDisplayItemIDs:detailRequest.displayItemIDs
+                                         needsSoloImage:detailRequest.needsSoloImage
+                                        needsGroupImage:detailRequest.needsGroupImage
+                                        lowImageQuality:detailRequest.lowImageQuality
+                                             completion:^(NSArray<PVDisplayItemDetail *> *details) {
+                    [self finishWithAttachment:[PVResponseAttachment attachmentWithData:details ?: @[]]
+                                    completion:completion];
+                }];
+                return;
+            }
             NSArray *details = [self.provider detailsForDisplayItemIDs:detailRequest.displayItemIDs
                                                          needsSoloImage:detailRequest.needsSoloImage
                                                         needsGroupImage:detailRequest.needsGroupImage
@@ -246,6 +257,22 @@
 
     PVStaticAsyncUpdateTasksPackage *package = operation.packages[operation.packageIndex];
     operation.packageIndex += 1;
+    if ([self.provider respondsToSelector:@selector(detailsForTaskPackages:lowImageQuality:completion:)]) {
+        [self.provider detailsForTaskPackages:@[package]
+                              lowImageQuality:NO
+                                   completion:^(NSArray<PVDisplayItemDetail *> *details) {
+            if (!operation.isCancelled) {
+                PVResponseAttachment *attachment = [PVResponseAttachment attachmentWithData:details ?: @[]];
+                attachment.dataTotalCount = operation.totalTaskCount;
+                attachment.currentDataCount = MAX(details.count, package.tasks.count);
+                [self finishWithAttachment:attachment completion:operation.completion];
+            }
+            dispatch_async(self.detailQueue, ^{
+                [self processDetailOperation:operation];
+            });
+        }];
+        return;
+    }
     NSArray<PVDisplayItemDetail *> *details = [self.provider detailsForTaskPackages:@[package] lowImageQuality:NO] ?: @[];
     if (!operation.isCancelled) {
         PVResponseAttachment *attachment = [PVResponseAttachment attachmentWithData:details];
