@@ -6,6 +6,7 @@
 #import <Network/Network.h>
 
 static NSError *PVLANBrowserErrorFromNWError(nw_error_t error);
+static NSTimeInterval const PVLANEndpointRemovalGraceInterval = 1.0;
 
 static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     if (!error) {
@@ -22,6 +23,7 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
 @property (nonatomic, strong, nullable) nw_browser_t browser;
 @property (nonatomic, strong) dispatch_queue_t queue;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVLANEndpoint *> *endpointsByID;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSUUID *> *pendingRemovalTokensByID;
 @end
 
 @implementation PVLANEndpointDiscoverer
@@ -31,6 +33,7 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     if (self) {
         _queue = dispatch_queue_create("com.pickview.lan.discovery", DISPATCH_QUEUE_SERIAL);
         _endpointsByID = [NSMutableDictionary dictionary];
+        _pendingRemovalTokensByID = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -55,13 +58,21 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
         if (!self) return;
 
         nw_browse_result_change_t changes = nw_browse_result_get_changes(oldResult, newResult);
-        if ((changes & nw_browse_result_change_result_removed) && oldResult) {
-            [self removeEndpointForBrowseResult:oldResult];
-            return;
-        }
+        NSLog(@"[PickView LAN Discoverer] changes=0x%llx batchComplete=%@ old=%@ new=%@",
+              changes,
+              batchComplete ? @"YES" : @"NO",
+              oldResult ? @"YES" : @"NO",
+              newResult ? @"YES" : @"NO");
 
+        // Network.framework describes newResult as a replacement for oldResult.
+        // Apply the replacement before considering removal so a service update does
+        // not briefly disappear from the client UI.
         if (newResult && (changes & (nw_browse_result_change_result_added | nw_browse_result_change_txt_record_changed | nw_browse_result_change_interface_added | nw_browse_result_change_interface_removed))) {
             [self addOrUpdateEndpointForBrowseResult:newResult];
+        }
+
+        if ((changes & nw_browse_result_change_result_removed) && oldResult) {
+            [self scheduleRemovalForBrowseResult:oldResult replacingResult:newResult];
         }
     });
 
@@ -88,6 +99,7 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     @synchronized (self.endpointsByID) {
         endpoints = self.endpointsByID.allValues;
         [self.endpointsByID removeAllObjects];
+        [self.pendingRemovalTokensByID removeAllObjects];
     }
 
     for (PVLANEndpoint *endpoint in endpoints) {
@@ -102,6 +114,7 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     PVLANEndpoint *endpoint = [[PVLANEndpoint alloc] initWithNetworkEndpoint:networkEndpoint];
 
     @synchronized (self.endpointsByID) {
+        [self.pendingRemovalTokensByID removeObjectForKey:endpoint.identifier];
         self.endpointsByID[endpoint.identifier] = endpoint;
     }
 
@@ -111,22 +124,50 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     });
 }
 
-- (void)removeEndpointForBrowseResult:(nw_browse_result_t)result {
+- (void)scheduleRemovalForBrowseResult:(nw_browse_result_t)result
+                       replacingResult:(nullable nw_browse_result_t)replacementResult {
     nw_endpoint_t networkEndpoint = nw_browse_result_copy_endpoint(result);
     PVLANEndpoint *endpoint = [[PVLANEndpoint alloc] initWithNetworkEndpoint:networkEndpoint];
 
-    PVLANEndpoint *removedEndpoint = nil;
-    @synchronized (self.endpointsByID) {
-        removedEndpoint = self.endpointsByID[endpoint.identifier];
-        [self.endpointsByID removeObjectForKey:endpoint.identifier];
+    if (replacementResult) {
+        nw_endpoint_t replacementNetworkEndpoint = nw_browse_result_copy_endpoint(replacementResult);
+        PVLANEndpoint *replacementEndpoint = [[PVLANEndpoint alloc] initWithNetworkEndpoint:replacementNetworkEndpoint];
+        if ([replacementEndpoint.identifier isEqualToString:endpoint.identifier]) {
+            return;
+        }
     }
 
-    if (removedEndpoint) {
-        NSLog(@"[PickView LAN Discoverer] removed %@", removedEndpoint.identifier);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate discoverer:self didRemoveEndpoint:removedEndpoint];
-        });
+    NSUUID *token = NSUUID.UUID;
+    @synchronized (self.endpointsByID) {
+        self.pendingRemovalTokensByID[endpoint.identifier] = token;
     }
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                 (int64_t)(PVLANEndpointRemovalGraceInterval * NSEC_PER_SEC)),
+                   self.queue, ^{
+        __strong typeof(weakSelf) self = weakSelf;
+        if (!self) return;
+
+        PVLANEndpoint *removedEndpoint = nil;
+        @synchronized (self.endpointsByID) {
+            NSUUID *currentToken = self.pendingRemovalTokensByID[endpoint.identifier];
+            if (![currentToken isEqual:token]) {
+                return;
+            }
+            [self.pendingRemovalTokensByID removeObjectForKey:endpoint.identifier];
+            removedEndpoint = self.endpointsByID[endpoint.identifier];
+            [self.endpointsByID removeObjectForKey:endpoint.identifier];
+        }
+
+        if (removedEndpoint) {
+            NSLog(@"[PickView LAN Discoverer] removed %@ after %.1fs grace",
+                  removedEndpoint.identifier, PVLANEndpointRemovalGraceInterval);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.delegate discoverer:self didRemoveEndpoint:removedEndpoint];
+            });
+        }
+    });
 }
 
 @end

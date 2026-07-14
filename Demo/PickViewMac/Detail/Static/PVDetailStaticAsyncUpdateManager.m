@@ -379,15 +379,15 @@
         
     } error:^(NSError * _Nullable error) {
         @strongify(self);
+        NSLog(@"AsyncUpdate - request failed domain=%@ code=%@ description=%@", error.domain,
+              @(error.code), error.localizedDescription);
         self.ongoingRequest = nil;
         [self notifyTasksCountToDelegate];
-        
-        NSString *msgTitle = [NSString stringWithFormat:NSLocalizedString(@"Request timeout, layer data transmission failed.", nil)];
-        NSString *msgDetail = NSLocalizedString(@"Perhaps your iOS app is paused with breakpoint in Xcode, blocked by other tasks in main thread, or moved to background state.\nToo large screenshots may also lead to this error.", nil);
-        error = PVInspectErrorMake(msgTitle, msgDetail);
+
+        NSError *displayError = error ?: PVInspectErr_Inner;
         [[RACScheduler mainThreadScheduler] afterDelay:1 schedule:^{
             // 此时可能 StaticViewController 还没来得及被初始化导致错误 tips 显示不出来，所以稍等一下
-            [self.delegate detailUpdateReceivedError:error];
+            [self.delegate detailUpdateReceivedError:displayError];
         }];
     } completed:^{
         // 注意，用户手动取消请求后，也会走到这里

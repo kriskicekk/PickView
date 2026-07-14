@@ -41,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)addEndpoint:(id<PVEndpointProtocol>)endpoint;
 - (void)removeEndpointForIdentifier:(NSString *)endpointIdentifier;
+- (void)forgetEndpointForIdentifier:(NSString *)endpointIdentifier;
 - (nullable id<PVEndpointProtocol>)endpointForIdentifier:(NSString *)endpointIdentifier;
 
 - (void)markEndpointConnectingWithIdentifier:(NSString *)endpointIdentifier;

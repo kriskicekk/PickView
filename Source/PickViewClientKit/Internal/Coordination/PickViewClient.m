@@ -434,7 +434,14 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
         });
         return;
     }
-    [self.sessionManager removeEndpointForIdentifier:endpoint.identifier];
+    if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+        // Bonjour discovery can briefly withdraw a service while its TCP
+        // connection remains healthy. Keep the established LAN session and
+        // let connection close/heartbeat own its lifetime.
+        [self.sessionManager forgetEndpointForIdentifier:endpoint.identifier];
+    } else {
+        [self.sessionManager removeEndpointForIdentifier:endpoint.identifier];
+    }
     [self notifyLog:[NSString stringWithFormat:@"removed %@", endpoint.displayName]];
     [self notifyLANSessionsChanged];
 }

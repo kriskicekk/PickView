@@ -21,8 +21,8 @@
 #import "PVUtils.h"
 
 static NSTimeInterval const PVClientSessionHeartbeatInterval = 3.0;
-static NSTimeInterval const PVClientSessionHeartbeatTimeout = 2.0;
-static NSUInteger const PVClientSessionMaxMissedHeartbeats = 2;
+static NSTimeInterval const PVClientSessionHeartbeatTimeout = 5.0;
+static NSUInteger const PVClientSessionMaxMissedHeartbeats = 3;
 
 @interface PVClientSession ()
 @property (nonatomic, strong) id<PVConnectionProtocol> connection;

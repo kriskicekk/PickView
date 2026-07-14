@@ -10,6 +10,7 @@
 #import "PVClientSessionManager.h"
 #import "PVEndpointProtocol.h"
 #import "PVPeerIdentity.h"
+#import "PVUSBEndpoint.h"
 
 NSString *const PVDetailInspectingAppDidEndNotificationName = @"PVDetailInspectingAppDidEndNotificationName";
 
@@ -118,9 +119,20 @@ NSString *const PVDetailInspectingAppDidEndNotificationName = @"PVDetailInspecti
 
 - (RACSignal *)fetchAppInfosWithImage:(BOOL)needImages localInfos:(NSArray<PVAppInfo *> *)localInfos {
     NSArray<PVClientSession *> *sessions = PickViewClient.sharedClient.sessionManager.allSessions ?: @[];
-    NSArray<PVClientSession *> *readySessions = [sessions pv_inspect_filter:^BOOL(PVClientSession *session) {
+    NSArray<PVClientSession *> *allReadySessions = [sessions pv_inspect_filter:^BOOL(PVClientSession *session) {
         return session.state == PVClientSessionStateReady;
     }];
+    NSMutableDictionary<NSString *, PVClientSession *> *preferredSessions = [NSMutableDictionary dictionary];
+    for (PVClientSession *session in allReadySessions) {
+        NSString *peerID = session.peerIdentity.uuid.length ? session.peerIdentity.uuid : session.identifier;
+        PVClientSession *current = preferredSessions[peerID];
+        BOOL sessionUsesUSB = [session.endpoint isKindOfClass:PVUSBEndpoint.class];
+        BOOL currentUsesUSB = [current.endpoint isKindOfClass:PVUSBEndpoint.class];
+        if (!current || (sessionUsesUSB && !currentUsesUSB)) {
+            preferredSessions[peerID] = session;
+        }
+    }
+    NSArray<PVClientSession *> *readySessions = preferredSessions.allValues;
 
     if (!readySessions.count) {
         return [RACSignal return:@[]];

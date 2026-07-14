@@ -35,6 +35,7 @@
     NSError *error = nil;
     NSData *payload = object ? [PVArchiveCodec archivedDataWithObject:object error:&error] : nil;
     if (object && !payload) {
+        NSLog(@"PickView request archive failed type=%u error=%@", type, error);
         if (completion) completion(nil, YES, error ?: PVInspectErr_Inner);
         return;
     }
@@ -46,6 +47,8 @@
         timeoutInterval:(NSTimeInterval)timeoutInterval
               completion:(PVInspectionRequestCompletion)completion {
     if (self.session.state != PVClientSessionStateReady) {
+        NSLog(@"PickView request rejected type=%u session=%@ state=%@", type,
+              self.session.identifier ?: @"", @(self.session.state));
         if (completion) completion(nil, YES, PVInspectErr_NoConnect);
         return;
     }

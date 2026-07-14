@@ -54,16 +54,6 @@
 - (void)addSession:(PVClientSession *)session {
     if (!session || [self.sessions containsObject:session] || !session.identifier || !self.endpointsByID[session.identifier]) return;
 
-    if ([session.endpoint isKindOfClass:PVLANEndpoint.class]) {
-        PVClientSession *usbSession = [self findUSBSessionByPeerIdentityUUID:session.peerIdentity.uuid];
-        if (usbSession) session.state = PVClientSessionStateBlocked;
-    }
-
-    if ([session.endpoint isKindOfClass:PVUSBEndpoint.class]) {
-        PVClientSession *lanSession = [self findLanSessionByPeerIdentityUUID:session.peerIdentity.uuid];
-        if (lanSession) lanSession.state = PVClientSessionStateBlocked;
-    }
-
     [self.sessions addObject:session];
     [self notifySessionsChanged];
 }
@@ -81,11 +71,6 @@
     BOOL hadSession = [self.sessions containsObject:session];
     [self.sessions removeObject:session];
     [self clearEndpointStateForIdentifier:session.identifier];
-
-    if ([session.endpoint isKindOfClass:PVUSBEndpoint.class]) {
-        PVClientSession *lanSession = [self findLanSessionByPeerIdentityUUID:session.peerIdentity.uuid];
-        if (lanSession) lanSession.state = PVClientSessionStateReady;
-    }
 
     if (hadSession) {
         [self notifySessionsChanged];
@@ -162,8 +147,13 @@
 
 - (void)removeEndpointForIdentifier:(NSString *)endpointIdentifier {
     if (!endpointIdentifier.length) return;
-    [self.endpointsByID removeObjectForKey:endpointIdentifier];
+    [self forgetEndpointForIdentifier:endpointIdentifier];
     [self removeSessionsForEndpointIdentifier:endpointIdentifier];
+}
+
+- (void)forgetEndpointForIdentifier:(NSString *)endpointIdentifier {
+    if (!endpointIdentifier.length) return;
+    [self.endpointsByID removeObjectForKey:endpointIdentifier];
 }
 
 - (void)removeAllEndpoints {
