@@ -1,41 +1,39 @@
 # Flutter Inspection
 
-This directory implements Flutter inspection as an internal PickViewServer
-source feature. It is not a separate Pod.
+This directory adapts `KKFlutterInspectorKit` snapshots to PickView's wire
+models. VM Service connection management, Inspector requests, snapshot object
+groups, tree building, property fetching, and Flutter screenshots belong to
+`KKFlutterInspectorKit`.
 
 ## Runtime Flow
 
-1. `PVHierarchyHandler` calls the provider's optional asynchronous preparation
-   method before taking the normal UIKit snapshot.
-2. `PVFVMFlutterEngineLocator` walks the current `UIWindow` controller graph and
-   discovers `FlutterViewController` instances with `NSClassFromString`.
-3. `PVFVMInspectorKit` caches the exact
-   `FlutterViewController -> FlutterEngine -> PVFVMEngineInspectorSession`
-   relationship. Records are removed when their view controller deallocates.
-4. The session reads `FlutterEngine.vmServiceUrl` and `isolateId`, connects with
-   `NSURLSessionWebSocketTask`, calls `getVM`, and then calls Flutter Inspector
-   service extensions.
-5. `getRootWidgetTree` supplies Widget metadata. `getLayoutExplorerNode`
-   supplies RenderObject geometry and parent-relative coordinates.
-6. `PVFlutterHierarchyCoordinator` converts the result into virtual
-   `PVDisplayItem` nodes and attaches them below the native Flutter root view.
-7. Existing PickView detail tasks lazily call `getProperties` and
-   `ext.flutter.inspector.screenshot` for Flutter nodes.
+1. `PVHierarchyHandler` asks the provider to start Flutter preparation, then
+   returns the normal UIKit snapshot without waiting for VM Service.
+2. `PVFlutterHierarchyCoordinator` finds visible `FlutterViewController`
+   instances already attached to the requested `UIWindow`; their host views
+   appear in the initial tree as loading leaf nodes.
+3. The coordinator warms `KKFlutterInspectorKit` and asks the Kit for one
+   hierarchy snapshot per visible Flutter page.
+4. The Kit owns reusable engine sessions and calls the Flutter Inspector
+   service extensions needed for Widget metadata and RenderObject geometry.
+5. The first asynchronous detail request waits for the pending snapshot,
+   converts each `KKFIInspectorElement` into a virtual `PVDisplayItem`, and
+   replaces the loading host's subitems on the Mac client.
+6. A follow-up detail pass lazily asks the Kit for Flutter properties and
+   screenshots through `KKFIElementReference`.
 
 ## Multiple Engines
 
-Sessions are keyed by `FlutterEngine`, not by isolate name. A visible Flutter
-view is resolved through its owning `FlutterViewController.engine`, so two
-engines receive independent object groups, object IDs, VM URLs, and caches.
-The same engine is prepared only once per window snapshot.
+`KKFlutterInspectorKit` owns engine and isolate identity. PickView stores only
+the opaque snapshot and element references returned by the Kit, so it cannot
+accidentally reuse an object ID after an isolate or object group changes.
 
 ## VM Service URI
 
-The in-process integration does not parse system logs. It waits for the debug
-engine's `vmServiceUrl` and `isolateId` properties. Log parsing remains useful
-for an external launcher, but an App reading its own unified system log is not
-reliable. Release engines do not expose VM Service or Inspector extensions; in
-that case PickView still returns the native UIKit hierarchy.
+The in-process integration does not parse system logs. The Kit resolves the
+debug engine's `vmServiceUrl` and `isolateId`. Release engines do not expose VM
+Service or Inspector extensions; in that case PickView still returns the
+native UIKit hierarchy.
 
 ## PickView Model
 
@@ -57,11 +55,11 @@ nodes; native items continue using the existing dashboard model.
 
 ## Screenshots
 
-Screenshots are fetched on demand. Group screenshots use
-`ext.flutter.inspector.screenshot`. For an expanded parent with a supported
-solid `BoxDecoration`, the solo image is drawn from color, border, radius, and
-shadow diagnostics so child pixels are not duplicated. Layout-only nodes do
-not produce PNG data.
-
-In Debug builds every VM JSON-RPC call is also written below the inspected
-App's Documents directory under `PickViewFlutterVMJSON/<session>/`.
+Screenshots are fetched on demand through `KKFlutterInspectorKit`. A group
+screenshot is the complete Flutter subtree. For an expanded parent with a
+supported native decoration, PickView draws the solo image from color, border,
+radius, and shadow diagnostics so child pixels are not duplicated. Layout-only
+nodes do not produce PNG data. A self-painting parent whose own pixels cannot
+be reconstructed is treated as an atomic subtree: PickView shows the complete
+subtree image and keeps its descendants available for hierarchy selection and
+property inspection without layering their screenshots a second time.

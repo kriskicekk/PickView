@@ -58,6 +58,7 @@ Pod::Spec.new do |s|
   s.osx.frameworks = 'AppKit'
   s.dependency 'PickViewCore', s.version.to_s
   s.dependency 'PeerTalk', '0.1.0'
+  s.ios.dependency 'KKFlutterInspectorKit', '0.1.0'
 
   # Auto-start relies on Objective-C +load, which must survive static linking.
   s.user_target_xcconfig = {
