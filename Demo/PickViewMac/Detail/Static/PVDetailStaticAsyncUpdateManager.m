@@ -73,6 +73,8 @@
 @property(nonatomic, strong) NSMutableArray<PVDetailDetailUpdateRequest *> *succeededRequests;
 /// 已经发送出去、尚未结束的 request
 @property(nonatomic, strong) PVDetailDetailUpdateRequest *ongoingRequest;
+/// 当前请求插入了异步层级节点，请求结束后需要为新节点补拉详情。
+@property(nonatomic) BOOL needsUpdateAfterHierarchyReload;
 
 @end
 
@@ -101,6 +103,12 @@
         [[self dataSource].willReloadHierarchyInfo subscribeNext:^(id  _Nullable x) {
             @strongify(self);
             [self.succeededRequests removeAllObjects];
+        }];
+        [[self dataSource].didReloadHierarchyInfo subscribeNext:^(id  _Nullable x) {
+            @strongify(self);
+            if (self.isUpdating) {
+                self.needsUpdateAfterHierarchyReload = YES;
+            }
         }];
     }
     return self;
@@ -137,6 +145,9 @@
         if (item.isUserCustom) {
             return nil;
         }
+        if (item.inNoPreviewHierarchy) {
+            return [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeNoScreenshot];
+        }
         if (item.doNotFetchScreenshotReason == PVFetchScreenshotPermitted) {
             if (item.isExpandable && item.isExpanded) {
                 return [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeSoloScreenshot];
@@ -150,6 +161,12 @@
     
     [self.dataSource.flatItems enumerateObjectsUsingBlock:^(PVDisplayItem * _Nonnull item, NSUInteger idx, BOOL * _Nonnull stop) {
         if (item.isUserCustom) {
+            return;
+        }
+        if (item.inNoPreviewHierarchy) {
+            PVStaticAsyncUpdateTask *task =
+                [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeNoScreenshot];
+            if (task && ![tasks containsObject:task]) [tasks addObject:task];
             return;
         }
         if (item.doNotFetchScreenshotReason == PVFetchScreenshotPermitted) {
@@ -291,7 +308,10 @@
         }
         
         PVStaticAsyncUpdateTask *newTask = nil;
-        if (item.doNotFetchScreenshotReason == PVFetchScreenshotPermitted) {
+        if (item.inNoPreviewHierarchy) {
+            newTask = [self _taskFromDisplayItem:item
+                                            type:PVStaticAsyncUpdateTaskTypeNoScreenshot];
+        } else if (item.doNotFetchScreenshotReason == PVFetchScreenshotPermitted) {
             // 该图层应该有图像（但是现在没有），所以应该拉取图像
             if (item.isExpandable && item.isExpanded) {
                 newTask = [self _taskFromDisplayItem:item type:PVStaticAsyncUpdateTaskTypeSoloScreenshot];
@@ -367,11 +387,21 @@
     @weakify(self);
     [[app fetchHierarchyDetailWithTaskPackages:packages] subscribeNext:^(NSArray<PVDisplayItemDetail *> *details) {
         @strongify(self);
+        PVDetailStaticHierarchyDataSource *dataSource =
+            [PVDetailStaticHierarchyDataSource sharedInstance];
         [details enumerateObjectsUsingBlock:^(PVDisplayItemDetail * _Nonnull detail, NSUInteger idx, BOOL * _Nonnull stop) {
+            // An earlier detail in the same response may replace a native
+            // Flutter host subtree. Responses for nodes removed by that
+            // replacement are obsolete and must not be reported as failures.
+            if (![dataSource displayItemWithOid:detail.displayItemOid]) {
+                NSLog(@"AsyncUpdate - Ignore obsolete task oid=%lu.",
+                      detail.displayItemOid);
+                return;
+            }
             if (detail.failureCode == -1) {
                 self.ongoingRequest.failedTasksCount += 1;
             } else {
-                [[PVDetailStaticHierarchyDataSource sharedInstance] modifyWithDisplayItemDetail:detail];
+                [dataSource modifyWithDisplayItemDetail:detail];
             }
         }];
         self.ongoingRequest.finishedTasksCount += details.count;
@@ -409,9 +439,17 @@
         }
         [self notifyTasksCountToDelegate];
         [PVDetailPerformanceReporter.sharedInstance didComplete];
-        
+
+        BOOL shouldUpdateInsertedItems = self.needsUpdateAfterHierarchyReload;
+        self.needsUpdateAfterHierarchyReload = NO;
         if (completionBlock) {
             completionBlock();
+        } else if (shouldUpdateInsertedItems) {
+            NSArray<PVStaticAsyncUpdateTask *> *tasks =
+                [self makeMinimumTasksForItems:self.dataSource.flatItems];
+            if (tasks.count > 0) {
+                [self sendTasks:tasks completion:nil];
+            }
         }
     }];
 }

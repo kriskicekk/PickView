@@ -72,7 +72,8 @@
             completion(error);
             return;
         }
-        [self.flutterCoordinator prepareWindow:window completion:completion];
+        [self.flutterCoordinator prepareWindow:window completion:nil];
+        if (completion) completion(nil);
     };
     if (NSThread.isMainThread) work();
     else dispatch_async(dispatch_get_main_queue(), work);
@@ -84,6 +85,7 @@
                  lowImageQuality:(BOOL)lowImageQuality
                       completion:(void (^)(NSArray<PVDisplayItemDetail *> *details))completion {
     dispatch_async(dispatch_get_main_queue(), ^{
+        [self.flutterCoordinator performAfterPendingPreparation:^{
         NSMutableArray<NSString *> *nativeIDs = [NSMutableArray array];
         NSMutableArray<NSString *> *flutterIDs = [NSMutableArray array];
         for (NSString *displayItemID in displayItemIDs) {
@@ -110,6 +112,7 @@
             [results addObjectsFromArray:details];
             completion(results.copy);
         }];
+        }];
     });
 }
 
@@ -119,16 +122,24 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         NSMutableArray<PVStaticAsyncUpdateTask *> *nativeTasks = [NSMutableArray array];
         NSMutableArray<PVStaticAsyncUpdateTask *> *flutterTasks = [NSMutableArray array];
+        BOOL containsFlutterHostTask = NO;
         for (PVStaticAsyncUpdateTasksPackage *package in packages) {
             for (PVStaticAsyncUpdateTask *task in package.tasks) {
                 if ([self.flutterCoordinator ownsObjectOID:task.oid]) {
                     [flutterTasks addObject:task];
                 } else {
                     [nativeTasks addObject:task];
+                    CALayer *layer = [self layerForOid:task.oid];
+                    if ([self.flutterCoordinator isFlutterHostLayer:layer]) {
+                        containsFlutterHostTask = YES;
+                    }
                 }
             }
         }
 
+        // Native layers may change while Flutter Inspector is connecting. Read
+        // them immediately so that Flutter preparation does not turn otherwise
+        // valid native tasks into stale-layer failures.
         NSMutableArray<PVDisplayItemDetail *> *results = [NSMutableArray array];
         if (nativeTasks.count) {
             PVStaticAsyncUpdateTasksPackage *nativePackage = [PVStaticAsyncUpdateTasksPackage new];
@@ -137,17 +148,41 @@
                 [self detailsForTaskPackagesOnMainThread:@[nativePackage]
                                          lowImageQuality:lowImageQuality] ?: @[]];
         }
-        if (flutterTasks.count == 0) {
+
+        if (!containsFlutterHostTask && flutterTasks.count == 0) {
             completion(results.copy);
             return;
         }
-        PVStaticAsyncUpdateTasksPackage *flutterPackage = [PVStaticAsyncUpdateTasksPackage new];
-        flutterPackage.tasks = flutterTasks.copy;
-        [self.flutterCoordinator detailsForTaskPackages:@[flutterPackage]
-                                        lowImageQuality:lowImageQuality
-                                             completion:^(NSArray<PVDisplayItemDetail *> *details) {
-            [results addObjectsFromArray:details];
-            completion(results.copy);
+
+        [self.flutterCoordinator performAfterPendingPreparation:^{
+            // The host detail was captured above. Once preparation finishes,
+            // only attach the virtual Flutter subtree to that cached detail.
+            for (PVDisplayItemDetail *detail in results) {
+                if (detail.failureCode == -1) continue;
+                CALayer *layer = [self layerForOid:detail.displayItemOid];
+                if (![self.flutterCoordinator isFlutterHostLayer:layer]) continue;
+                UIView *view = layer.pv_inspect_hostView;
+                NSArray<PVDisplayItem *> *flutterItems = view
+                    ? [self.flutterCoordinator virtualItemsForHostView:view]
+                    : @[];
+                if (flutterItems.count == 0) {
+                    flutterItems = [self.flutterCoordinator virtualItemsForHostLayer:layer];
+                }
+                if (flutterItems.count > 0) detail.subitems = flutterItems;
+            }
+
+            if (flutterTasks.count == 0) {
+                completion(results.copy);
+                return;
+            }
+            PVStaticAsyncUpdateTasksPackage *flutterPackage = [PVStaticAsyncUpdateTasksPackage new];
+            flutterPackage.tasks = flutterTasks.copy;
+            [self.flutterCoordinator detailsForTaskPackages:@[flutterPackage]
+                                            lowImageQuality:lowImageQuality
+                                                 completion:^(NSArray<PVDisplayItemDetail *> *details) {
+                [results addObjectsFromArray:details];
+                completion(results.copy);
+            }];
         }];
     });
 }
@@ -618,7 +653,18 @@
                 detail.alphaValue = @(layer.opacity);
             }
 
-            if (task.needSubitems) {
+            NSArray<PVDisplayItem *> *flutterItems = view
+                ? [self.flutterCoordinator virtualItemsForHostView:view]
+                : @[];
+            if (flutterItems.count == 0) {
+                flutterItems = [self.flutterCoordinator virtualItemsForHostLayer:layer];
+            }
+            if (flutterItems.count > 0) {
+                // Flutter hierarchy loading is asynchronous. The first native
+                // hierarchy contains the normal host-layer subtree; its first
+                // detail response replaces that subtree with Inspector nodes.
+                detail.subitems = flutterItems;
+            } else if (task.needSubitems) {
                 detail.subitems = [self subitemsForLayer:layer];
             }
 
@@ -1573,6 +1619,8 @@
 
 - (PVDisplayItem *)displayItemForLayer:(CALayer *)layer {
     UIView *view = layer.pv_inspect_hostView;
+    BOOL isFlutterHost = view != nil &&
+        [self.flutterCoordinator isFlutterHostView:view];
     PVDisplayItem *item = [[PVDisplayItem alloc] init];
     item.objectID = [self identifierForObject:layer prefix:@"ios-layer"];
     item.displayName = NSStringFromClass(view ? view.class : layer.class);
@@ -1615,9 +1663,15 @@
         flutterItems = [self.flutterCoordinator virtualItemsForHostLayer:layer];
     }
     if (flutterItems.count) {
+        item.flutterLoadState = PVFlutterLoadStateLoaded;
         NSLog(@"PV_FLUTTER_HIERARCHY_ATTACHED layer=%@ view=%@ rootItems=%@",
               layer, view, @(flutterItems.count));
         [children addObjectsFromArray:flutterItems];
+    } else if (isFlutterHost) {
+        // Return the normal UIKit hierarchy immediately with the Flutter host
+        // as a placeholder. Its asynchronous detail response installs the
+        // Inspector subtree after KKFlutterInspectorKit finishes loading it.
+        item.flutterLoadState = PVFlutterLoadStateLoading;
     } else {
         for (CALayer *sublayer in layer.sublayers) {
             [children addObject:[self displayItemForLayer:sublayer]];
