@@ -16,6 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSString *)subtitle;
 
+/// Recognizes Flutter items from both the current wire model and older servers
+/// that only supplied a Flutter reference or the virtual object identifier.
+- (BOOL)pv_isFlutterItem;
+
 /// 返回 soloScreenshot 或 groupScreenshot
 - (NSImage *)appropriateScreenshot;
 

@@ -174,7 +174,10 @@
             }
         }
         
-        if (!obj.isUserCustom && !obj.shouldCaptureImage) {
+        // Flutter layout nodes may not paint themselves, while their descendants
+        // still have independent screenshots. Do not hide the whole virtual tree.
+        if (obj.contentKind != PVDisplayItemContentKindFlutter &&
+            !obj.isUserCustom && !obj.shouldCaptureImage) {
             [obj enumerateSelfAndChildren:^(PVDisplayItem *item) {
                 item.noPreview = YES;
                 item.doNotFetchScreenshotReason = PVDoNotFetchScreenshotForUserConfig;

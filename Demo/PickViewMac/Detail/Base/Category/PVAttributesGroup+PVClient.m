@@ -18,8 +18,30 @@
     if (self.userCustomTitle.length > 0) {
         return self.userCustomTitle;
     }
-    if ([PVDetailAppsManager sharedInstance].inspectingApp.session.peerIdentity.uiFramework == PVPeerUIFrameworkAppKit) {
+
+    PVPeerUIFramework framework = [PVDetailAppsManager sharedInstance].inspectingApp.session.peerIdentity.uiFramework;
+    if (framework == PVPeerUIFrameworkUIKit) {
         NSDictionary<PVAttrGroupIdentifier, NSString *> *titles = @{
+            PVAttrGroup_ViewLayer: @"CALayer / UIView",
+            PVAttrGroup_UIStackView: @"UIStackView",
+            PVAttrGroup_UIVisualEffectView: @"UIVisualEffectView",
+            PVAttrGroup_UIImageView: @"UIImageView",
+            PVAttrGroup_UILabel: @"UILabel",
+            PVAttrGroup_UIControl: @"UIControl",
+            PVAttrGroup_UIButton: @"UIButton",
+            PVAttrGroup_UIScrollView: @"UIScrollView",
+            PVAttrGroup_UITableView: @"UITableView",
+            PVAttrGroup_UITextView: @"UITextView",
+            PVAttrGroup_UITextField: @"UITextField",
+            PVAttrGroup_UIWindowScene: @"UIWindowScene",
+            PVAttrGroup_UITraitCollection: @"UITraitCollection"
+        };
+        NSString *title = titles[self.identifier];
+        if (title.length) {
+            return title;
+        }
+    } else if (framework == PVPeerUIFrameworkAppKit) {
+        NSDictionary<PVAttrGroupIdentifier, NSString *> *legacyTitles = @{
             PVAttrGroup_ViewLayer: @"CALayer / NSView",
             PVAttrGroup_UIStackView: @"NSStackView",
             PVAttrGroup_UIImageView: @"NSImageView",
@@ -30,7 +52,7 @@
             PVAttrGroup_UITextView: @"NSTextView",
             PVAttrGroup_UITextField: @"NSTextField"
         };
-        NSString *title = titles[self.identifier];
+        NSString *title = legacyTitles[self.identifier];
         if (title.length) {
             return title;
         }

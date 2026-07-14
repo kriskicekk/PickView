@@ -90,6 +90,13 @@
         NSAssert(NO, @"");
         return;
     }
+    if (detail.contentKind == PVDisplayItemContentKindFlutter) {
+        displayItem.contentKind = detail.contentKind;
+        displayItem.flutterDetail = detail.flutterDetail;
+        displayItem.flutterReference = detail.flutterDetail.reference ?: displayItem.flutterReference;
+        displayItem.flutterLoadState = detail.flutterDetail ? PVFlutterLoadStateLoaded : displayItem.flutterLoadState;
+        [self.itemDidChangeAttrGroup sendNext:displayItem];
+    }
     if (detail.customDisplayTitle) {
         displayItem.customDisplayTitle = detail.customDisplayTitle;
     }
@@ -163,7 +170,8 @@
             if (obj == displayItem) {
                 return;
             }
-            if (!obj.isUserCustom && !obj.shouldCaptureImage) {
+            if (obj.contentKind != PVDisplayItemContentKindFlutter &&
+                !obj.isUserCustom && !obj.shouldCaptureImage) {
                 [obj enumerateSelfAndChildren:^(PVDisplayItem *item) {
                     item.noPreview = YES;
                     item.doNotFetchScreenshotReason = PVDoNotFetchScreenshotForUserConfig;

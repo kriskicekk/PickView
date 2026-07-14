@@ -20,6 +20,8 @@
 #import "PVDetailPreferenceManager.h"
 #import "PVDetailNavigationManager.h"
 #import "PVDetailMeasureController.h"
+#import "PVDetailFlutterViewController.h"
+#import "PVDisplayItem.h"
 
 @interface PVDetailReadViewController () <NSSplitViewDelegate>
 
@@ -31,6 +33,7 @@
 @property(nonatomic, strong) PVDetailReadHierarchyController *hierarchyController;
 @property(nonatomic, strong) PVDetailPreviewController *previewController;
 @property(nonatomic, strong) PVDetailMeasureController *measureController;
+@property(nonatomic, strong) PVDetailFlutterViewController *flutterController;
 @property(nonatomic, strong) PVDetailYellowTipsView *focusTipView;
 
 @end
@@ -56,6 +59,11 @@
         self.dashboardController = [[PVDetailDashboardViewController alloc] initWithReadDataSource:self.hierarchyDataSource];
         [self.splitRightView addSubview:self.dashboardController.view];
         [self addChildViewController:self.dashboardController];
+
+        self.flutterController = [PVDetailFlutterViewController new];
+        self.flutterController.view.hidden = YES;
+        [self.splitRightView addSubview:self.flutterController.view];
+        [self addChildViewController:self.flutterController];
         
         self.measureController = [[PVDetailMeasureController alloc] initWithDataSource:self.hierarchyDataSource];
         self.measureController.view.hidden = YES;
@@ -86,6 +94,10 @@
             }
             [self.view setNeedsLayout:YES];
         }];
+        [RACObserve(self.hierarchyDataSource, selectedItem) subscribeNext:^(PVDisplayItem *item) {
+            @strongify(self);
+            [self updateDetailControllerForItem:item];
+        }];
     }
     return self;
 }
@@ -106,7 +118,16 @@
     [super viewDidLayout];
     $(self.previewController.view).fullFrame;
     $(self.dashboardController.view).width(DashboardViewWidth).right(0).fullHeight;
+    CGFloat flutterWidth = MIN(PVFlutterInspectorPanelWidth, NSWidth(self.splitRightView.bounds));
+    self.flutterController.view.frame = NSMakeRect(NSWidth(self.splitRightView.bounds) - flutterWidth,
+                                                   0,
+                                                   flutterWidth,
+                                                   NSHeight(self.splitRightView.bounds));
+    self.flutterController.view.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
     $(self.measureController.view).width(MeasureViewWidth).right(DashboardHorInset).fullHeight;
+    [self.splitRightView addSubview:self.dashboardController.view positioned:NSWindowAbove relativeTo:self.previewController.view];
+    [self.splitRightView addSubview:self.flutterController.view positioned:NSWindowAbove relativeTo:self.dashboardController.view];
+    [self.splitRightView addSubview:self.measureController.view positioned:NSWindowAbove relativeTo:self.flutterController.view];
     
     CGFloat windowTitleHeight = [PVDetailNavigationManager sharedInstance].windowTitleBarHeight;
     __block CGFloat tipsY = windowTitleHeight + 10;
@@ -124,8 +145,25 @@
 - (void)_handleMeasureStateChange:(PVDetailMsgActionParams *)param {
     PVMeasureState state = param.integerValue;
     BOOL isMeasure = (state != PVMeasureState_no);
-    self.dashboardController.view.hidden = isMeasure;
+    BOOL isFlutter = self.hierarchyDataSource.selectedItem.pv_isFlutterItem;
+    self.dashboardController.view.hidden = isMeasure || isFlutter;
+    self.flutterController.view.hidden = isMeasure || !isFlutter;
     self.measureController.view.hidden = !isMeasure;
+}
+
+- (void)updateDetailControllerForItem:(PVDisplayItem *)item {
+    BOOL isFlutter = item.pv_isFlutterItem;
+    BOOL isMeasure = self.hierarchyDataSource.preferenceManager.measureState.currentIntegerValue != PVMeasureState_no;
+    self.dashboardController.view.hidden = isMeasure || isFlutter;
+    self.flutterController.view.hidden = isMeasure || !isFlutter;
+    self.flutterController.displayItem = isFlutter ? item : nil;
+    if (isFlutter) {
+        [self.splitRightView addSubview:self.flutterController.view
+                               positioned:NSWindowAbove
+                               relativeTo:self.dashboardController.view];
+        [self.flutterController.view setNeedsLayout:YES];
+        [self.flutterController.view layoutSubtreeIfNeeded];
+    }
 }
 
 - (void)_handleExitFocusTipView {

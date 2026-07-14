@@ -27,6 +27,7 @@
 #import "PVDetailTutorialManager.h"
 #import "PVDetailPreferenceManager.h"
 #import "PVDetailMeasureController.h"
+#import "PVDetailFlutterViewController.h"
 
 NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsoleNotificationName";
 
@@ -49,6 +50,7 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
 @property(nonatomic, strong) PVDetailStaticHierarchyController *hierarchyController;
 @property(nonatomic, strong) PVDetailConsoleViewController *consoleController;
 @property(nonatomic, strong) PVDetailMeasureController *measureController;
+@property(nonatomic, strong) PVDetailFlutterViewController *flutterController;
 
 @end
 
@@ -97,10 +99,15 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
     self.dashboardController = [[PVDetailDashboardViewController alloc] initWithStaticDataSource:dataSource];
     [self.splitTopView addSubview:self.dashboardController.view positioned:NSWindowAbove relativeTo:self.viewsPreviewController.view];
     [self addChildViewController:self.dashboardController];
+
+    self.flutterController = [PVDetailFlutterViewController new];
+    self.flutterController.view.hidden = YES;
+    [self.splitTopView addSubview:self.flutterController.view positioned:NSWindowAbove relativeTo:self.dashboardController.view];
+    [self addChildViewController:self.flutterController];
     
     self.measureController = [[PVDetailMeasureController alloc] initWithDataSource:dataSource];
     self.measureController.view.hidden = YES;
-    [self.splitTopView addSubview:self.measureController.view];
+    [self.splitTopView addSubview:self.measureController.view positioned:NSWindowAbove relativeTo:self.flutterController.view];
     [self addChildViewController:self.measureController];
     
     self.imageSyncTipsView = [PVDetailTipsView new];
@@ -166,6 +173,13 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
         @strongify(self);
         [self handleSelectItemDidChange];
     }];
+
+    [[dataSource.itemDidChangeAttrGroup deliverOnMainThread] subscribeNext:^(PVDisplayItem *item) {
+        @strongify(self);
+        if (item == dataSource.selectedItem && item.pv_isFlutterItem) {
+            self.flutterController.displayItem = item;
+        }
+    }];
     
     [[[RACSignal merge:@[RACObserve(dataSource, selectedItem), dataSource.itemDidChangeNoPreview]] skip:1] subscribeNext:^(id  _Nullable x) {
         @strongify(self);
@@ -229,10 +243,14 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
 - (void)viewDidLayout {
     [super viewDidLayout];
     $(self.dashboardController.view).width(DashboardViewWidth).right(0).fullHeight;
+    CGFloat flutterWidth = MIN(PVFlutterInspectorPanelWidth, NSWidth(self.splitTopView.bounds));
+    self.flutterController.view.frame = NSMakeRect(NSWidth(self.splitTopView.bounds) - flutterWidth,
+                                                   0,
+                                                   flutterWidth,
+                                                   NSHeight(self.splitTopView.bounds));
+    self.flutterController.view.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
     $(self.measureController.view).width(MeasureViewWidth).right(DashboardHorInset).fullHeight;
     $(self.viewsPreviewController.view).fullFrame;
-    [self.splitTopView addSubview:self.dashboardController.view positioned:NSWindowAbove relativeTo:self.viewsPreviewController.view];
-    [self.splitTopView addSubview:self.measureController.view positioned:NSWindowAbove relativeTo:self.dashboardController.view];
     
     CGFloat windowTitleHeight = [PVDetailNavigationManager sharedInstance].windowTitleBarHeight;
     
@@ -448,7 +466,9 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
 - (void)_handleMeasureStateChange:(PVDetailMsgActionParams *)param {
     PVMeasureState state = param.integerValue;
     BOOL isMeasure = (state != PVMeasureState_no);
-    self.dashboardController.view.hidden = isMeasure;
+    BOOL isFlutter = self.dataSource.selectedItem.pv_isFlutterItem;
+    self.dashboardController.view.hidden = isMeasure || isFlutter;
+    self.flutterController.view.hidden = isMeasure || !isFlutter;
     self.measureController.view.hidden = !isMeasure;
 }
 
@@ -464,6 +484,14 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
 
 - (void)handleSelectItemDidChange {
     PVDisplayItem *item = [[self dataSource] selectedItem];
+    BOOL isFlutter = item.pv_isFlutterItem;
+    BOOL isMeasure = PVDetailPreferenceManager.mainManager.measureState.currentIntegerValue != PVMeasureState_no;
+    self.dashboardController.view.hidden = isMeasure || isFlutter;
+    self.flutterController.view.hidden = isMeasure || !isFlutter;
+    self.flutterController.displayItem = isFlutter ? item : nil;
+    if (isFlutter) {
+        [self.flutterController.view setNeedsLayout:YES];
+    }
     
     {
         BOOL showTips = (item && ![item appropriateScreenshot] && item.doNotFetchScreenshotReason == PVDoNotFetchScreenshotForTooLarge);

@@ -978,6 +978,11 @@
             PVAttrGroup_AutoLayout: @"AutoLayout",
 #if TARGET_OS_IPHONE
             PVAttrGroup_ViewLayer: @"CALayer / UIView",
+#else
+            PVAttrGroup_ViewLayer: @"CALayer / NSView",
+#endif
+            // The dashboard renders models received from another platform, so
+            // both UIKit and AppKit identifiers must be understood here.
             PVAttrGroup_UIImageView: @"UIImageView",
             PVAttrGroup_UILabel: @"UILabel",
             PVAttrGroup_UIControl: @"UIControl",
@@ -990,24 +995,24 @@
             PVAttrGroup_UIStackView: @"UIStackView",
             PVAttrGroup_UIWindowScene: @"UIWindowScene",
             PVAttrGroup_UITraitCollection: @"UITraitCollection",
-#else
-            PVAttrGroup_ViewLayer: @"CALayer / NSView",
-            PVAttrGroup_NSImageView:        @"NSImageView",
-            PVAttrGroup_NSControl:          @"NSControl",
-            PVAttrGroup_NSButton:           @"NSButton",
-            PVAttrGroup_NSScrollView:       @"NSScrollView",
-            PVAttrGroup_NSTableView:        @"NSTableView",
-            PVAttrGroup_NSTextView:         @"NSTextView",
-            PVAttrGroup_NSTextField:        @"NSTextField",
+            PVAttrGroup_NSImageView: @"NSImageView",
+            PVAttrGroup_NSControl: @"NSControl",
+            PVAttrGroup_NSButton: @"NSButton",
+            PVAttrGroup_NSScrollView: @"NSScrollView",
+            PVAttrGroup_NSTableView: @"NSTableView",
+            PVAttrGroup_NSTextView: @"NSTextView",
+            PVAttrGroup_NSTextField: @"NSTextField",
             PVAttrGroup_NSVisualEffectView: @"NSVisualEffectView",
-            PVAttrGroup_NSStackView:        @"NSStackView",
-            PVAttrGroup_NSWindow:           @"NSWindow",
-#endif
+            PVAttrGroup_NSStackView: @"NSStackView",
+            PVAttrGroup_NSWindow: @"NSWindow",
         };
     });
     NSString *title = rawInfo[groupID];
-    NSAssert(title.length, @"");
-    return title;
+    if (title.length) {
+        return title;
+    }
+    NSLog(@"[PickView Dashboard] Unknown attribute group identifier: %@", groupID ?: @"<nil>");
+    return groupID.length ? groupID : @"Properties";
 }
 
 + (NSString *)sectionTitleWithSectionID:(PVAttrSectionIdentifier)secID {

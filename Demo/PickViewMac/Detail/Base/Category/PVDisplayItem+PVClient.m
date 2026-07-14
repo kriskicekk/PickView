@@ -12,7 +12,9 @@
 @implementation PVDisplayItem (PVClient)
 
 - (NSString *)title {
-    if (self.customInfo) {
+    if (self.pv_isFlutterItem && self.displayName.length > 0) {
+        return self.displayName;
+    } else if (self.customInfo) {
         return self.customInfo.title;
     } else if (self.customDisplayTitle.length > 0) {
         return self.customDisplayTitle;
@@ -25,6 +27,13 @@
     } else {
         return nil;
     }
+}
+
+- (BOOL)pv_isFlutterItem {
+    return self.contentKind == PVDisplayItemContentKindFlutter ||
+        self.flutterReference != nil ||
+        self.flutterDetail != nil ||
+        [self.objectID hasPrefix:@"flutter:"];
 }
 
 - (NSString *)subtitle {
