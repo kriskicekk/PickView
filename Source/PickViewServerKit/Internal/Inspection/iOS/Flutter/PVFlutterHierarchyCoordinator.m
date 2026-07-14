@@ -13,6 +13,12 @@
 #import "PVObject.h"
 #import "PVStaticAsyncUpdateTask.h"
 
+static BOOL PVShouldCaptureCollapsedFlutterSubtree(
+    KKFIInspectorElement *element) {
+    return [element.renderStrategy isEqualToString:@"layoutOnly"] &&
+        element.children.count > 0;
+}
+
 @interface PVFlutterPageSnapshot : NSObject
 @property(nonatomic, weak) UIView *hostView;
 @property(nonatomic, weak) FlutterViewController *viewController;
@@ -247,7 +253,9 @@
     item.frame = element.frame;
     item.bounds = (CGRect){CGPointZero, element.frame.size};
     item.alpha = 1;
-    item.shouldCaptureImage = element.captureEligible || element.nativeDecoration != nil;
+    item.shouldCaptureImage = element.captureEligible ||
+        element.nativeDecoration != nil ||
+        PVShouldCaptureCollapsedFlutterSubtree(element);
     item.attributesGroupList = @[];
     item.customAttrGroupList = @[];
 
@@ -511,6 +519,9 @@
     }
     BOOL atomicSubtree =
         [element.renderStrategy isEqualToString:@"atomicSubtreeScreenshot"];
+    BOOL collapsedLayoutSubtree =
+        task.taskType == PVStaticAsyncUpdateTaskTypeGroupScreenshot &&
+        PVShouldCaptureCollapsedFlutterSubtree(element);
     if (task.taskType == PVStaticAsyncUpdateTaskTypeSoloScreenshot &&
         element.children.count > 0 && !atomicSubtree) {
         CGFloat displayScale = record.page.hostView.traitCollection.displayScale;
@@ -525,7 +536,8 @@
         completion();
         return;
     }
-    if (!element.captureEligible && element.nativeDecoration == nil) {
+    if (!element.captureEligible && element.nativeDecoration == nil &&
+        !collapsedLayoutSubtree) {
         completion();
         return;
     }
@@ -550,6 +562,10 @@
                 detail.groupImageData = result.pngData;
                 detail.groupScreenshot = result.image;
             }
+        } else {
+            NSLog(@"PV_FLUTTER_SCREENSHOT_FAILED objectID=%@ widget=%@ strategy=%@ error=%@",
+                  element.reference.objectID, element.widgetType,
+                  element.renderStrategy, error);
         }
         completion();
     }];
