@@ -98,7 +98,6 @@ PickView 的 Flutter 集成直接从当前 `FlutterEngine` 读取 `vmServiceUrl`
 - iOS App 保持前台运行；后台挂起后无法保证监听继续工作。
 - 首次运行时，在 iOS 系统弹窗中允许“本地网络”。
 - PickView 发起连接后，在被检查 App 中点击“允许”。
-- VPN、访客 Wi-Fi、AP Isolation 或防火墙不能阻断设备间访问。
 
 #### 3. 从 PickView Mac 连接
 
@@ -278,4 +277,4 @@ If the device does not appear:
 
 ### Credits and License
 
-PickView's inspection workflow and parts of its implementation are based on Lookin/LookInside. Follow the licenses of this repository and the respective upstream projects. Related license files are stored under `Source/PickViewCore/InspectionModels/` and `ThirdParty/PickViewDetailReference/`.
+PickView's inspection workflow and parts of its implementation are based on Lookin. Follow the licenses of this repository and the respective upstream projects. Related license files are stored under `Source/PickViewCore/InspectionModels/` and `ThirdParty/PickViewDetailReference/`.
