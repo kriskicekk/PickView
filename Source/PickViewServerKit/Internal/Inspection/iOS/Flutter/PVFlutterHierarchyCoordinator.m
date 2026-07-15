@@ -528,6 +528,11 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
         PVShouldCaptureCollapsedFlutterSubtree(element);
     if (task.taskType == PVStaticAsyncUpdateTaskTypeSoloScreenshot &&
         element.children.count > 0 && !atomicSubtree) {
+        // An Inspector screenshot always contains the complete render subtree.
+        // For an ordinary expanded parent, only keep a reconstructable
+        // decoration and let visible children provide their own screenshots.
+        // A parent whose own pixels cannot be reconstructed remains atomic and
+        // falls through to a complete subtree capture instead.
         CGFloat displayScale = record.page.hostView.traitCollection.displayScale;
         UIImage *image = [self decorationImageForElement:element
                                          lowImageQuality:lowImageQuality
@@ -546,13 +551,13 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
         return;
     }
 
-    CGFloat margin = ([element.renderObjectType isEqual:@"RenderParagraph"] ||
-                      [element.renderObjectType isEqual:@"RenderEditable"]) ? 4 : 0;
     CGFloat displayScale = MAX(record.page.hostView.traitCollection.displayScale, 1);
-    CGFloat ratio = lowImageQuality ? 1 : MIN(displayScale, 3);
+    // PickView displays these images on a Retina canvas and can further scale
+    // them during 3D transforms. A 1x Flutter capture becomes visibly soft, so
+    // keep the source image at the host view's native density (capped at 3x).
+    CGFloat ratio = MIN(MAX(displayScale, 2), 3);
     KKFIScreenshotOptions *options = [[KKFIScreenshotOptions alloc]
         initWithLogicalSize:element.frame.size];
-    options.margin = margin;
     options.maxPixelRatio = ratio;
     [self.inspector captureScreenshotForElement:element.reference
                                         options:options
@@ -583,11 +588,25 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
     if (!decoration || size.width <= 0 || size.height <= 0) return nil;
     UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
     format.opaque = NO;
-    format.scale = lowImageQuality ? 1 : MAX(displayScale, 1);
+    format.scale = MIN(MAX(displayScale, 2), 3);
+    (void)lowImageQuality;
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc]
         initWithSize:size format:format];
     return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
         CGRect rect = (CGRect){CGPointZero, size};
+        NSDictionary *contentInsets =
+            [decoration[@"contentInsets"] isKindOfClass:NSDictionary.class]
+                ? decoration[@"contentInsets"]
+                : nil;
+        if (contentInsets != nil) {
+            UIEdgeInsets insets = UIEdgeInsetsMake(
+                [contentInsets[@"top"] doubleValue],
+                [contentInsets[@"left"] doubleValue],
+                [contentInsets[@"bottom"] doubleValue],
+                [contentInsets[@"right"] doubleValue]);
+            rect = UIEdgeInsetsInsetRect(rect, insets);
+        }
+        if (rect.size.width <= 0 || rect.size.height <= 0) return;
         CGFloat radius = [decoration[@"cornerRadius"] doubleValue];
         UIBezierPath *path = [decoration[@"shape"] isEqual:@"circle"]
             ? [UIBezierPath bezierPathWithOvalInRect:rect]
@@ -595,8 +614,15 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
         NSArray *shadows = [decoration[@"shadows"] isKindOfClass:NSArray.class]
             ? decoration[@"shadows"] : @[];
         NSDictionary *shadow = shadows.firstObject;
-        UIColor *fillColor = [self colorFromDictionary:decoration[@"backgroundColor"]]
-            ?: UIColor.clearColor;
+        NSDictionary *gradient = [decoration[@"gradient"] isKindOfClass:NSDictionary.class]
+            ? decoration[@"gradient"] : nil;
+        NSArray *gradientColors = [gradient[@"colors"] isKindOfClass:NSArray.class]
+            ? gradient[@"colors"] : @[];
+        UIColor *fillColor = [self colorFromDictionary:decoration[@"backgroundColor"]];
+        if (fillColor == nil && gradientColors.count > 0) {
+            fillColor = [self colorFromDictionary:gradientColors.firstObject];
+        }
+        fillColor = fillColor ?: UIColor.clearColor;
         CGContextRef cg = context.CGContext;
         CGContextSaveGState(cg);
         if (shadow) {
@@ -611,14 +637,68 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
         [path fill];
         CGContextRestoreGState(cg);
 
+        if ([gradient[@"type"] isEqual:@"linear"] &&
+            gradientColors.count >= 2) {
+            NSMutableArray *cgColors =
+                [NSMutableArray arrayWithCapacity:gradientColors.count];
+            for (NSDictionary *colorDictionary in gradientColors) {
+                UIColor *color = [self colorFromDictionary:colorDictionary];
+                if (color != nil) {
+                    [cgColors addObject:(__bridge id)color.CGColor];
+                }
+            }
+            if (cgColors.count == gradientColors.count) {
+                NSArray *stops = [gradient[@"stops"] isKindOfClass:NSArray.class]
+                    ? gradient[@"stops"] : nil;
+                CGFloat *locations = NULL;
+                if (stops.count == cgColors.count) {
+                    locations = calloc(stops.count, sizeof(CGFloat));
+                    [stops enumerateObjectsUsingBlock:^(NSNumber *value,
+                                                         NSUInteger index,
+                                                         BOOL *stop) {
+                        locations[index] = value.doubleValue;
+                    }];
+                }
+                CGGradientRef cgGradient = CGGradientCreateWithColors(
+                    NULL, (__bridge CFArrayRef)cgColors, locations);
+                free(locations);
+                if (cgGradient != NULL) {
+                    CGPoint start = CGPointMake(
+                        CGRectGetMinX(rect) + CGRectGetWidth(rect) *
+                            [gradient[@"startX"] doubleValue],
+                        CGRectGetMinY(rect) + CGRectGetHeight(rect) *
+                            [gradient[@"startY"] doubleValue]);
+                    CGPoint end = CGPointMake(
+                        CGRectGetMinX(rect) + CGRectGetWidth(rect) *
+                            [gradient[@"endX"] doubleValue],
+                        CGRectGetMinY(rect) + CGRectGetHeight(rect) *
+                            [gradient[@"endY"] doubleValue]);
+                    CGContextSaveGState(cg);
+                    [path addClip];
+                    CGContextDrawLinearGradient(
+                        cg, cgGradient, start, end,
+                        kCGGradientDrawsBeforeStartLocation |
+                            kCGGradientDrawsAfterEndLocation);
+                    CGContextRestoreGState(cg);
+                    CGGradientRelease(cgGradient);
+                }
+            }
+        }
+
         NSDictionary *border = [decoration[@"border"] isKindOfClass:NSDictionary.class]
             ? decoration[@"border"] : nil;
         CGFloat width = [border[@"width"] doubleValue];
         UIColor *borderColor = [self colorFromDictionary:border[@"color"]];
         if (width > 0 && borderColor) {
+            CGRect borderRect = CGRectInset(rect, width * 0.5, width * 0.5);
+            CGFloat borderRadius = MAX(0, radius - width * 0.5);
+            UIBezierPath *borderPath = [decoration[@"shape"] isEqual:@"circle"]
+                ? [UIBezierPath bezierPathWithOvalInRect:borderRect]
+                : [UIBezierPath bezierPathWithRoundedRect:borderRect
+                                              cornerRadius:borderRadius];
             [borderColor setStroke];
-            path.lineWidth = width;
-            [path stroke];
+            borderPath.lineWidth = width;
+            [borderPath stroke];
         }
     }];
 }
