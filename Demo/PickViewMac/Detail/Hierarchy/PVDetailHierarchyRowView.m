@@ -335,7 +335,10 @@
         return nil;
     }
     __block NSString *imageName = nil;
-    if (item.isUserCustom) {
+    if (item.pv_isFlutterItem) {
+        imageName = @"hierarchy_flutter";
+
+    } else if (item.isUserCustom) {
         imageName = @"hierarchy_custom";
         
     } else if (item.hostViewControllerObject) {
