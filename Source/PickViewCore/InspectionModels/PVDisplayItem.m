@@ -380,6 +380,14 @@
 }
 
 - (void)_updateInNoPreviewHierarchy {
+    // A Flutter summary node can be a logical business widget without its own
+    // RenderObject while its visual descendants still have valid geometry.
+    // Keep the no-preview state local to each Flutter node so that such a
+    // wrapper does not suppress screenshots for its renderable children.
+    if (self.contentKind == PVDisplayItemContentKindFlutter) {
+        self.inNoPreviewHierarchy = self.noPreview;
+        return;
+    }
     if (self.superItem.inNoPreviewHierarchy || self.noPreview) {
         self.inNoPreviewHierarchy = YES;
     } else {

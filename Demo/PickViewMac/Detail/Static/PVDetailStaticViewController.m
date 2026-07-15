@@ -186,7 +186,9 @@ NSString *const PVDetailAppShowConsoleNotificationName = @"PVDetailAppShowConsol
         PVDisplayItem *item = dataSource.selectedItem;
         BOOL shouldShowNoPreviewTip = item.inNoPreviewHierarchy && item.doNotFetchScreenshotReason != PVDoNotFetchScreenshotForUserConfig;
         if (shouldShowNoPreviewTip || !self.noPreviewTipView.hidden) {
-            self.noPreviewTipView.title = [NSString stringWithFormat:NSLocalizedString(@"The screenshot of selected %@ is not displayed.", nil), item.title];
+            self.noPreviewTipView.title = item.pv_isFlutterItem
+                ? NSLocalizedString(@"The selected Flutter node is not drawn as a separate 3D layer.", nil)
+                : [NSString stringWithFormat:NSLocalizedString(@"The screenshot of selected %@ is not displayed.", nil), item.title];
             self.noPreviewTipView.bindingObject = item;
             self.noPreviewTipView.hidden = !shouldShowNoPreviewTip;
             [self.view setNeedsLayout:YES];

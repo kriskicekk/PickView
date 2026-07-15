@@ -350,6 +350,65 @@
     return tasks;
 }
 
+- (NSArray<PVStaticAsyncUpdateTask *> *)makeMissingCompleteTasksForFlutterItems:(NSArray<PVDisplayItem *> *)items {
+    NSMutableArray<PVStaticAsyncUpdateTask *> *tasks = [NSMutableArray array];
+    for (PVDisplayItem *item in items) {
+        if (!item.pv_isFlutterItem || item.isUserCustom) {
+            continue;
+        }
+
+        NSMutableArray<PVStaticAsyncUpdateTask *> *itemTasks = [NSMutableArray array];
+        if (item.inNoPreviewHierarchy ||
+            item.doNotFetchScreenshotReason != PVFetchScreenshotPermitted) {
+            if (item.attributesGroupList.count == 0) {
+                PVStaticAsyncUpdateTask *task =
+                    [self _taskFromDisplayItem:item
+                                          type:PVStaticAsyncUpdateTaskTypeNoScreenshot];
+                if (task != nil) {
+                    [itemTasks addObject:task];
+                }
+            }
+        } else {
+            if (item.groupScreenshot == nil) {
+                PVStaticAsyncUpdateTask *task =
+                    [self _taskFromDisplayItem:item
+                                          type:PVStaticAsyncUpdateTaskTypeGroupScreenshot];
+                if (task != nil) {
+                    [itemTasks addObject:task];
+                }
+            }
+            if (item.isExpandable && item.soloScreenshot == nil) {
+                PVStaticAsyncUpdateTask *task =
+                    [self _taskFromDisplayItem:item
+                                          type:PVStaticAsyncUpdateTaskTypeSoloScreenshot];
+                if (task != nil) {
+                    [itemTasks addObject:task];
+                }
+            }
+        }
+
+        BOOL needsAttributes = item.attributesGroupList.count == 0;
+        for (PVStaticAsyncUpdateTask *task in itemTasks) {
+            task.attrRequest = needsAttributes
+                ? PVDetailUpdateTaskAttrRequest_Need
+                : PVDetailUpdateTaskAttrRequest_NotNeed;
+            needsAttributes = NO;
+
+            BOOL alreadyRequested = NO;
+            for (PVDetailDetailUpdateRequest *request in self.succeededRequests) {
+                if ([request queryIfContainsTask:task]) {
+                    alreadyRequested = YES;
+                    break;
+                }
+            }
+            if (!alreadyRequested) {
+                [tasks addObject:task];
+            }
+        }
+    }
+    return tasks.copy;
+}
+
 - (void)updateForDisplayingItems {
     NSAssert(PVDetailPreferenceManager.mainManager.fastMode.currentValue, @"");
 
@@ -446,7 +505,10 @@
             completionBlock();
         } else if (shouldUpdateInsertedItems) {
             NSArray<PVStaticAsyncUpdateTask *> *tasks =
-                [self makeMinimumTasksForItems:self.dataSource.flatItems];
+                PVDetailPreferenceManager.mainManager.fastMode.currentBOOLValue
+                    ? [self makeMinimumTasksForItems:self.dataSource.flatItems]
+                    : [self makeMissingCompleteTasksForFlutterItems:
+                        self.dataSource.flatItems];
             if (tasks.count > 0) {
                 [self sendTasks:tasks completion:nil];
             }

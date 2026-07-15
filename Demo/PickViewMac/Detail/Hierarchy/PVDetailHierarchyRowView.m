@@ -239,6 +239,12 @@
     if (![item hasPreviewBoxAbility]) {
         return NO;
     }
+    // Flutter noPreview is also used for subtree screenshot composition and
+    // unresolved Inspector geometry. It does not mean that the Widget itself
+    // was deleted, so the native-view strikethrough is misleading here.
+    if (item.pv_isFlutterItem) {
+        return NO;
+    }
     if (item.inNoPreviewHierarchy) {
         return YES;
     }

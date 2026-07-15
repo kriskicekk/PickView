@@ -253,9 +253,10 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
     item.frame = element.frame;
     item.bounds = (CGRect){CGPointZero, element.frame.size};
     item.alpha = 1;
-    item.shouldCaptureImage = element.captureEligible ||
-        element.nativeDecoration != nil ||
-        PVShouldCaptureCollapsedFlutterSubtree(element);
+    item.noPreview = !element.hasFrame;
+    item.shouldCaptureImage = element.hasFrame &&
+        (element.captureEligible || element.nativeDecoration != nil ||
+         PVShouldCaptureCollapsedFlutterSubtree(element));
     item.attributesGroupList = @[];
     item.customAttrGroupList = @[];
 
@@ -272,9 +273,6 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
     }
     item.subitems = children.copy;
     item.children = children.copy;
-    if ([element.renderStrategy isEqualToString:@"atomicSubtreeScreenshot"]) {
-        for (PVDisplayItem *child in children) child.noPreview = YES;
-    }
     return item;
 }
 
@@ -300,6 +298,8 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
     geometry.identifier = @"geometry";
     geometry.title = @"Geometry";
     geometry.fields = @[
+        [self boolField:@"frameAvailable" title:@"Frame available"
+                  value:element.hasFrame],
         [self rectField:@"frame" title:@"Frame in parent" rect:element.frame],
         [self sizeField:@"size" title:@"Size" size:element.frame.size]
     ];
@@ -514,6 +514,10 @@ static BOOL PVShouldCaptureCollapsedFlutterSubtree(
              completion:(dispatch_block_t)completion {
     KKFIInspectorElement *element = record.element;
     if (task.taskType == PVStaticAsyncUpdateTaskTypeNoScreenshot) {
+        completion();
+        return;
+    }
+    if (!element.hasFrame) {
         completion();
         return;
     }
