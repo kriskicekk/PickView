@@ -46,6 +46,7 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
 @property (nonatomic, strong) NSMapTable<NSNumber *, id> *objectRegistry;
 #if !TARGET_OS_IPHONE && TARGET_OS_OSX
 @property (nonatomic, strong) NSMapTable<CALayer *, NSView *> *hostViewsByLayer;
+@property (nonatomic, copy) NSDictionary<NSString *, NSValue *> *wireFramesByWindowID;
 #endif
 @end
 
@@ -57,6 +58,7 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
         _objectRegistry = [NSMapTable strongToWeakObjectsMapTable];
 #if !TARGET_OS_IPHONE && TARGET_OS_OSX
         _hostViewsByLayer = [NSMapTable weakToWeakObjectsMapTable];
+        _wireFramesByWindowID = @{};
 #endif
     }
     return self;
@@ -427,7 +429,7 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
 
 #if !TARGET_OS_IPHONE && TARGET_OS_OSX
 - (NSArray<PVWindowInfo *> *)allWindowsOnMainThread {
-    NSArray<NSWindow *> *windows = NSApplication.sharedApplication.windows.copy ?: @[];
+    NSArray<NSWindow *> *windows = [self inspectionWindows];
     NSMutableArray<PVWindowInfo *> *infos = [NSMutableArray arrayWithCapacity:windows.count];
     for (NSWindow *window in windows) {
         [infos addObject:[self windowInfoForWindow:window]];
@@ -436,8 +438,15 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
 }
 
 - (PVHierarchyInfo *)hierarchyForWindowIDOnMainThread:(NSString *)windowID error:(NSError **)error {
-    NSWindow *window = [self windowForIdentifier:windowID];
-    if (!window) {
+    NSArray<NSWindow *> *windows = nil;
+    if (windowID.length) {
+        NSWindow *window = [self windowForIdentifier:windowID];
+        windows = window ? @[window] : @[];
+    } else {
+        windows = [self inspectionWindows];
+    }
+
+    if (!windows.count) {
         if (error) {
             *error = [NSError errorWithDomain:PVErrorDomain
                                          code:PVErrorCodeUnknown
@@ -446,24 +455,76 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
         return nil;
     }
 
-    [self reloadIvarTracesForWindow:window];
+    NSWindow *primaryWindow = [self primaryWindowFromWindows:windows];
+    [self reloadIvarTracesForWindow:primaryWindow];
+
+    NSMutableDictionary<NSString *, NSValue *> *wireFramesByWindowID = [NSMutableDictionary dictionaryWithCapacity:windows.count];
+    for (NSWindow *window in windows) {
+        CGRect wireFrame = [self zeroOriginWireFrameForWindow:window];
+        NSString *identifier = [self identifierForObject:window prefix:@"mac-window"];
+        if (identifier.length) {
+            wireFramesByWindowID[identifier] = [NSValue valueWithRect:wireFrame];
+        }
+    }
+    self.wireFramesByWindowID = wireFramesByWindowID.copy;
+
+    NSMutableArray<PVDisplayItem *> *rootItems = [NSMutableArray arrayWithCapacity:windows.count];
+    for (NSWindow *window in windows) {
+        [rootItems addObject:[self displayItemForWindow:window]];
+    }
 
     PVHierarchyInfo *info = [[PVHierarchyInfo alloc] init];
     info.appInfo = [PVAppInfoCollector currentInfoWithImages:NO localIdentifiers:@[]];
-    NSSize contentSize = window.pv_inspect_bounds.size;
-    info.appInfo.screenWidth = contentSize.width;
-    info.appInfo.screenHeight = contentSize.height;
-    info.appInfo.screenScale = window.screen.backingScaleFactor ?: 1;
+    NSSize canvasSize = [self canvasSizeForWindows:windows];
+    info.appInfo.screenWidth = canvasSize.width;
+    info.appInfo.screenHeight = canvasSize.height;
+    info.appInfo.screenScale = primaryWindow.screen.backingScaleFactor ?: 1;
     info.serverVersion = info.appInfo.serverVersion;
-    info.windowInfo = [self windowInfoForWindow:window];
-    info.rootItems = @[[self displayItemForWindow:window]];
+    info.windowInfo = [self windowInfoForWindow:primaryWindow];
+    info.rootItems = rootItems.copy;
     return info;
 }
 
+- (NSArray<NSWindow *> *)inspectionWindows {
+    NSMutableOrderedSet<NSWindow *> *windows = [NSMutableOrderedSet orderedSet];
+    [windows addObjectsFromArray:NSApplication.sharedApplication.orderedWindows.copy ?: @[]];
+    [windows addObjectsFromArray:NSApplication.sharedApplication.windows.copy ?: @[]];
+    return windows.array.copy;
+}
+
+- (NSWindow *)primaryWindowFromWindows:(NSArray<NSWindow *> *)windows {
+    for (NSWindow *window in windows) {
+        if (window.isKeyWindow) {
+            return window;
+        }
+    }
+    for (NSWindow *window in windows) {
+        if (window.isMainWindow) {
+            return window;
+        }
+    }
+    return windows.firstObject;
+}
+
+- (NSSize)canvasSizeForWindows:(NSArray<NSWindow *> *)windows {
+    NSSize canvasSize = NSZeroSize;
+    for (NSWindow *window in windows) {
+        NSSize windowSize = window.pv_inspect_bounds.size;
+        canvasSize.width = MAX(canvasSize.width, windowSize.width);
+        canvasSize.height = MAX(canvasSize.height, windowSize.height);
+    }
+    return canvasSize;
+}
+
+- (CGRect)zeroOriginWireFrameForWindow:(NSWindow *)window {
+    NSSize size = window.pv_inspect_bounds.size;
+    return CGRectMake(0, 0, size.width, size.height);
+}
+
 - (NSWindow *)windowForIdentifier:(NSString *)windowID {
-    NSArray<NSWindow *> *windows = NSApplication.sharedApplication.windows.copy ?: @[];
+    NSArray<NSWindow *> *windows = [self inspectionWindows];
     if (!windowID.length) {
-        return NSApplication.sharedApplication.keyWindow ?: NSApplication.sharedApplication.mainWindow ?: windows.firstObject;
+        return [self primaryWindowFromWindows:windows];
     }
 
     for (NSWindow *window in windows) {
@@ -1442,8 +1503,9 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
 }
 
 - (CGRect)wireFrameForWindow:(NSWindow *)window {
-    NSSize size = window.pv_inspect_bounds.size;
-    return CGRectMake(0, 0, size.width, size.height);
+    NSString *identifier = [self identifierForObject:window prefix:@"mac-window"];
+    NSValue *wireFrameValue = self.wireFramesByWindowID[identifier];
+    return wireFrameValue ? wireFrameValue.rectValue : [self zeroOriginWireFrameForWindow:window];
 }
 
 - (CGRect)wireFrameForView:(NSView *)view {
@@ -1636,6 +1698,7 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
     item.bounds = window.pv_inspect_bounds;
     item.hidden = !window.isVisible;
     item.alpha = window.alphaValue;
+    item.representedAsKeyWindow = window.isKeyWindow;
     item.windowObject = [self identityForObject:window prefix:@"mac-window"];
     if (window.windowController) {
         item.hostWindowControllerObject = [self identityForObject:window.windowController prefix:@"mac-window-controller"];

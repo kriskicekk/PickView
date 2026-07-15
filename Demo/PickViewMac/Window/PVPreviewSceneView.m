@@ -7,6 +7,7 @@
 
 #import "PVPreviewSceneView.h"
 
+#import "PVAppInfo.h"
 #import "PVDisplayItem.h"
 #import "PVDisplayItemDetail.h"
 #import "PVHierarchyInfo.h"
@@ -338,7 +339,11 @@ static CGFloat const PVPreviewMaxCameraFocalLength = 750.0;
 }
 
 - (CGSize)screenSizeForHierarchy:(PVHierarchyInfo *)hierarchy {
-    CGSize size = hierarchy.windowInfo.frame.size;
+    CGSize size = CGSizeMake(hierarchy.appInfo.screenWidth, hierarchy.appInfo.screenHeight);
+    if (size.width > 0.0 && size.height > 0.0) {
+        return size;
+    }
+    size = hierarchy.windowInfo.frame.size;
     if (size.width > 0.0 && size.height > 0.0) {
         return size;
     }
@@ -353,8 +358,10 @@ static CGFloat const PVPreviewMaxCameraFocalLength = 750.0;
 - (NSArray<PVPreviewLayoutEntry *> *)layoutEntriesForHierarchy:(PVHierarchyInfo *)hierarchy {
     NSMutableArray<PVPreviewLayoutEntry *> *entries = [NSMutableArray array];
     for (PVDisplayItem *rootItem in hierarchy.rootItems) {
-        CGSize rootSize = [self sizeForDisplayItem:rootItem];
-        CGRect rootFrame = CGRectMake(0.0, 0.0, rootSize.width, rootSize.height);
+        CGRect rootFrame = rootItem.frame;
+        if (rootFrame.size.width <= 0.0 || rootFrame.size.height <= 0.0) {
+            rootFrame.size = [self sizeForDisplayItem:rootItem];
+        }
         [self appendDisplayItem:rootItem frameToRoot:rootFrame depth:0 entries:entries];
     }
     return entries.copy;
