@@ -18,6 +18,12 @@
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    NSURL *iconURL = [NSBundle.mainBundle URLForResource:@"AppIcon" withExtension:@"icns"];
+    NSImage *iconImage = [[NSImage alloc] initWithContentsOfURL:iconURL];
+    if (iconImage) {
+        NSApp.applicationIconImage = iconImage;
+    }
+
     self.clientWindowController = [[PVClientWindowController alloc] init];
     [self.clientWindowController start];
 }
