@@ -20,6 +20,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, PVDisplayItemDetailFailureCode) {
+    PVDisplayItemDetailFailureCodeNone = 0,
+    /// The object existed in the hierarchy snapshot but disappeared before its
+    /// detail request was handled.
+    PVDisplayItemDetailFailureCodeStaleObject = -1,
+};
+
 @interface PVDisplayItemDetail : NSObject <NSSecureCoding, NSCopying>
 
 @property (nonatomic, copy) NSString *displayItemID;
@@ -42,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSArray<PVAttributesGroup *> *attributesGroupList;
 @property (nonatomic, copy) NSArray<PVAttributesGroup *> *customAttrGroupList;
 @property (nonatomic, copy, nullable) NSArray<PVDisplayItem *> *subitems;
-@property (nonatomic, assign) NSInteger failureCode;
+@property (nonatomic, assign) PVDisplayItemDetailFailureCode failureCode;
 @property (nonatomic, assign) PVDisplayItemContentKind contentKind;
 @property (nonatomic, strong, nullable) PVFlutterNodeDetail *flutterDetail;
 

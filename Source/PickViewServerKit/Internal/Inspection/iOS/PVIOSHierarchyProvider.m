@@ -158,7 +158,7 @@
             // The host detail was captured above. Once preparation finishes,
             // only attach the virtual Flutter subtree to that cached detail.
             for (PVDisplayItemDetail *detail in results) {
-                if (detail.failureCode == -1) continue;
+                if (detail.failureCode == PVDisplayItemDetailFailureCodeStaleObject) continue;
                 CALayer *layer = [self layerForOid:detail.displayItemOid];
                 if (![self.flutterCoordinator isFlutterHostLayer:layer]) continue;
                 UIView *view = layer.pv_inspect_hostView;
@@ -585,7 +585,9 @@
         detail.displayItemID = displayItemID;
         detail.displayItemOid = (unsigned long)(uintptr_t)view.layer;
         if (!view) {
-            detail.failureCode = -1;
+            detail.failureCode = PVDisplayItemDetailFailureCodeStaleObject;
+            NSLog(@"PV_DETAIL_STALE_OBJECT source=displayItemID objectID=%@ oid=%lu",
+                  displayItemID, detail.displayItemOid);
             [details addObject:detail];
             continue;
         }
@@ -622,7 +624,13 @@
 
             CALayer *layer = [self layerForOid:task.oid];
             if (!layer) {
-                detail.failureCode = -1;
+                detail.failureCode = PVDisplayItemDetailFailureCodeStaleObject;
+                NSLog(@"PV_DETAIL_STALE_OBJECT source=task oid=%lu taskType=%ld "
+                      "needAttributes=%@ needBasisVisualInfo=%@ needSubitems=%@",
+                      task.oid, (long)task.taskType,
+                      task.attrRequest == PVDetailUpdateTaskAttrRequest_NotNeed ? @"NO" : @"YES",
+                      task.needBasisVisualInfo ? @"YES" : @"NO",
+                      task.needSubitems ? @"YES" : @"NO");
                 [details addObject:detail];
                 continue;
             }

@@ -457,7 +457,21 @@
                       detail.displayItemOid);
                 return;
             }
-            if (detail.failureCode == -1) {
+            if (detail.failureCode == PVDisplayItemDetailFailureCodeStaleObject) {
+                PVDisplayItem *staleItem =
+                    [dataSource displayItemWithOid:detail.displayItemOid];
+                NSLog(@"AsyncUpdate - Ignore stale object oid=%lu objectID=%@ "
+                      "name=%@ viewClass=%@ layerClass=%@ contentKind=%ld flutter=%@.",
+                      detail.displayItemOid,
+                      staleItem.objectID ?: @"<unknown>",
+                      staleItem.displayName ?: @"<unknown>",
+                      staleItem.viewClassName ?: @"<none>",
+                      staleItem.layerClassName ?: @"<none>",
+                      (long)staleItem.contentKind,
+                      staleItem.pv_isFlutterItem ? @"YES" : @"NO");
+                return;
+            }
+            if (detail.failureCode != PVDisplayItemDetailFailureCodeNone) {
                 self.ongoingRequest.failedTasksCount += 1;
             } else {
                 [dataSource modifyWithDisplayItemDetail:detail];
