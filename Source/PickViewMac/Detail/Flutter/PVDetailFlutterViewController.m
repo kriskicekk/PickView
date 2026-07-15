@@ -17,6 +17,15 @@ const CGFloat PVFlutterInspectorPanelWidth = 260.0;
 static CGFloat const PVFlutterPanelInset = 10.0;
 static CGFloat const PVFlutterSectionSpacing = 10.0;
 static CGFloat const PVFlutterFieldSpacing = 9.0;
+static CGFloat const PVFlutterCardTitleFontSize = 13.0;
+static CGFloat const PVFlutterFieldTitleFontSize = 12.0;
+static CGFloat const PVFlutterValueFontSize = 12.0;
+static CGFloat const PVFlutterInfoFontSize = 12.0;
+static CGFloat const PVFlutterCaptionFontSize = 11.0;
+
+static CGFloat PVFlutterCenteredOrigin(CGFloat rowOrigin, CGFloat rowHeight, CGFloat contentHeight) {
+    return rowOrigin + floor(MAX(0, rowHeight - contentHeight) / 2.0);
+}
 
 typedef NS_ENUM(NSUInteger, PVFlutterInspectorDomain) {
     PVFlutterInspectorDomainWidget = 0,
@@ -32,6 +41,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     PVFlutterInspectorFieldStyleColor,
     PVFlutterInspectorFieldStyleRect,
     PVFlutterInspectorFieldStyleSize,
+    PVFlutterInspectorFieldStyleImage,
     PVFlutterInspectorFieldStyleJSON,
     PVFlutterInspectorFieldStyleInfo,
 };
@@ -45,6 +55,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 @property(nonatomic) CGRect rectValue;
 @property(nonatomic) CGSize sizeValue;
 @property(nonatomic, strong, nullable) NSColor *colorValue;
+@property(nonatomic, strong, nullable) NSImage *imageValue;
 @end
 
 @implementation PVFlutterInspectorFieldModel
@@ -116,14 +127,28 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 
     PVFlutterDetailSection *diagnostics = [self sectionWithIdentifier:@"diagnostics" detail:detail];
     NSArray *diagnosticObjects = [self JSONObjectsFromFields:diagnostics.fields];
-    NSArray *widgetProperties = [self diagnosticFieldsFromObjects:diagnosticObjects technical:NO];
-    if (widgetProperties.count) {
-        NSString *title = [self propertySectionTitleForKind:presentation.nodeKind
-                                                widgetType:presentation.widgetType];
-        [widgetSections addObject:[self section:title
-                                         subtitle:@"Widget configuration from DiagnosticsNode"
-                                           accent:[self widgetAccent]
-                                           fields:widgetProperties]];
+    NSArray *flattenedDiagnosticObjects = [self flattenedDiagnosticObjects:diagnosticObjects];
+    if ([presentation.nodeKind isEqualToString:@"text"]) {
+        [self appendTextSectionsFromObjects:flattenedDiagnosticObjects
+                                textPreview:[self textPreviewFromDetail:detail]
+                                         to:widgetSections];
+    } else if ([presentation.nodeKind isEqualToString:@"icon"]) {
+        [self appendIconSectionsFromObjects:flattenedDiagnosticObjects
+                                    preview:item.soloScreenshot
+                                         to:widgetSections];
+    } else {
+        NSArray *widgetProperties = [self diagnosticFieldsFromObjects:diagnosticObjects technical:NO];
+        if (!widgetProperties.count) {
+            widgetProperties = [self diagnosticFieldsFromObjects:flattenedDiagnosticObjects technical:NO];
+        }
+        if (widgetProperties.count) {
+            NSString *title = [self propertySectionTitleForKind:presentation.nodeKind
+                                                      widgetType:presentation.widgetType];
+            [widgetSections addObject:[self section:title
+                                             subtitle:@""
+                                               accent:[self widgetAccent]
+                                               fields:widgetProperties]];
+        }
     }
 
     [self appendRelationSection:@"layoutModifiers"
@@ -144,57 +169,30 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 
     for (PVFlutterLayoutGroup *group in detail.layoutGroups ?: @[]) {
         NSMutableArray<PVFlutterInspectorFieldModel *> *fields = [NSMutableArray array];
-        [fields addObject:[self textField:@"RenderObject"
-                                    value:group.renderObjectType
-                                secondary:@""]];
-        [fields addObject:[self numberField:@"Managed children"
-                                      value:[NSString stringWithFormat:@"%@", @(group.managedNodeIDs.count)]
-                                  secondary:@""]];
         for (PVFlutterDetailField *field in group.fields) {
             NSDictionary *relation = [self JSONObjectFromString:field.textValue];
             NSArray *properties = [relation[@"properties"] isKindOfClass:NSArray.class]
                 ? relation[@"properties"] : @[];
             [fields addObjectsFromArray:[self diagnosticFieldsFromObjects:properties technical:NO]];
         }
-        NSString *title = [NSString stringWithFormat:@"Children layout: %@",
-                           group.widgetType.length ? group.widgetType : @"Unknown"];
-        NSString *subtitle = group.renderObjectType.length ? group.renderObjectType : @"Child layout policy";
+        if (!fields.count) continue;
+        NSString *title = group.widgetType.length ? group.widgetType : @"Children layout";
         [widgetSections addObject:[self section:title
-                                         subtitle:subtitle
+                                         subtitle:@""
                                            accent:[self layoutAccent]
                                            fields:fields]];
     }
 
     NSMutableArray<PVFlutterInspectorFieldModel *> *boxFields = [NSMutableArray array];
     PVFlutterInspectorFieldModel *frame = [PVFlutterInspectorFieldModel new];
-    frame.title = @"Frame in parent";
+    frame.title = @"Frame";
     frame.style = PVFlutterInspectorFieldStyleRect;
     frame.rectValue = item.frame;
     [boxFields addObject:frame];
-    PVFlutterInspectorFieldModel *size = [PVFlutterInspectorFieldModel new];
-    size.title = @"Size";
-    size.style = PVFlutterInspectorFieldStyleSize;
-    size.sizeValue = item.bounds.size;
-    [boxFields addObject:size];
-    [boxFields addObject:[self numberField:@"Visual children"
-                                    value:[NSString stringWithFormat:@"%@", @(item.subitems.count)]
-                                secondary:@""]];
-    [renderSections addObject:[self section:@"Box model"
-                                    subtitle:@"Parent-relative geometry in logical pixels"
+    [renderSections addObject:[self section:@"Layout"
+                                    subtitle:@""
                                       accent:[self renderAccent]
                                       fields:boxFields]];
-
-    PVFlutterDetailSection *rendering = [self sectionWithIdentifier:@"rendering" detail:detail];
-    NSMutableArray *renderFields = [NSMutableArray array];
-    for (PVFlutterDetailField *field in rendering.fields ?: @[]) {
-        [renderFields addObject:[self presentationFieldFromDetailField:field]];
-    }
-    if (renderFields.count) {
-        [renderSections addObject:[self section:@"Paint pipeline"
-                                        subtitle:@"How this RenderObject contributes pixels"
-                                          accent:[self paintAccent]
-                                          fields:renderFields]];
-    }
 
     PVFlutterDetailSection *decoration = [self sectionWithIdentifier:@"decoration" detail:detail];
     NSMutableArray *decorationFields = [NSMutableArray array];
@@ -203,29 +201,10 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     }
     if (decorationFields.count) {
         [renderSections addObject:[self section:@"Decoration"
-                                        subtitle:@"Flutter box paint translated from diagnostics"
+                                        subtitle:@""
                                           accent:[self paintAccent]
                                           fields:decorationFields]];
     }
-
-    NSMutableArray *displayFields = [NSMutableArray array];
-    if (item.backgroundColorText.length) {
-        NSColor *backgroundColor = [self colorFromDescription:item.backgroundColorText];
-        [displayFields addObject:[self colorField:@"Background"
-                                            color:backgroundColor
-                                             text:item.backgroundColorText]];
-    }
-    [displayFields addObject:[self numberField:@"Opacity"
-                                        value:[NSString stringWithFormat:@"%.3g", item.alpha]
-                                    secondary:@""]];
-    [displayFields addObject:[self booleanField:@"Visible" value:!item.hidden]];
-    [displayFields addObject:[self booleanField:@"Screenshot eligible" value:item.shouldCaptureImage]];
-    NSString *screenshotValue = item.soloScreenshot || item.groupScreenshot ? @"Available" : @"Not captured";
-    [displayFields addObject:[self textField:@"Screenshot" value:screenshotValue secondary:@""]];
-    [renderSections addObject:[self section:@"Compositing output"
-                                    subtitle:@"Final visibility and capture state"
-                                      accent:[self effectAccent]
-                                      fields:displayFields]];
 
     NSMutableArray *runtimeFields = [NSMutableArray array];
     [runtimeFields addObject:[self infoField:@"Widget" value:presentation.widgetType]];
@@ -241,18 +220,6 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
                                    subtitle:@"Widget, Element and RenderObject identity"
                                      accent:[self debugAccent]
                                      fields:runtimeFields]];
-
-    PVFlutterNodeReference *reference = detail.reference ?: item.flutterReference;
-    NSMutableArray *VMFields = [NSMutableArray array];
-    [VMFields addObject:[self infoField:@"Engine" value:reference.engineIdentifier]];
-    [VMFields addObject:[self infoField:@"Isolate" value:reference.isolateID]];
-    [VMFields addObject:[self infoField:@"Object group" value:reference.objectGroup]];
-    [VMFields addObject:[self infoField:@"Object ID" value:reference.objectID]];
-    [VMFields addObject:[self infoField:@"Controller" value:reference.recordIdentifier]];
-    [debugSections addObject:[self section:@"VM service"
-                                   subtitle:@"Connection used for Inspector extensions"
-                                     accent:[self debugAccent]
-                                     fields:VMFields]];
 
     NSMutableArray *rawFields = [NSMutableArray array];
     if (detail.rawJSON.length) {
@@ -279,6 +246,176 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     return presentation;
 }
 
++ (NSArray<NSDictionary *> *)flattenedDiagnosticObjects:(NSArray *)objects {
+    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
+    for (id object in objects ?: @[]) {
+        [self appendDiagnosticObject:object to:result];
+    }
+    return result.copy;
+}
+
++ (void)appendDiagnosticObject:(id)object
+                             to:(NSMutableArray<NSDictionary *> *)result {
+    if (![object isKindOfClass:NSDictionary.class]) return;
+    NSDictionary *property = object;
+    [result addObject:property];
+    NSArray *children = [property[@"properties"] isKindOfClass:NSArray.class]
+        ? property[@"properties"] : @[];
+    for (id child in children) {
+        [self appendDiagnosticObject:child to:result];
+    }
+}
+
++ (NSString *)normalizedDiagnosticName:(NSString *)name {
+    NSString *result = name.lowercaseString ?: @"";
+    for (NSString *separator in @[@" ", @"_", @"-"]) {
+        result = [result stringByReplacingOccurrencesOfString:separator withString:@""];
+    }
+    return result;
+}
+
++ (NSString *)displayTitleForDiagnosticName:(NSString *)name {
+    static NSDictionary<NSString *, NSString *> *titles;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        titles = @{
+            @"data" : @"Text", @"text" : @"Text",
+            @"semanticslabel" : @"Semantics label",
+            @"textalign" : @"Text align", @"textdirection" : @"Text direction",
+            @"softwrap" : @"Soft wrap", @"overflow" : @"Overflow",
+            @"maxlines" : @"Max lines", @"textwidthbasis" : @"Text width basis",
+            @"textheightbehavior" : @"Text height behavior",
+            @"textscaler" : @"Text scaler", @"textscalefactor" : @"Text scale factor",
+            @"fontfamily" : @"Font family", @"fontfamilyfallback" : @"Font fallback",
+            @"fontsize" : @"Font size", @"fontweight" : @"Font weight",
+            @"fontstyle" : @"Font style", @"letterspacing" : @"Letter spacing",
+            @"wordspacing" : @"Word spacing", @"textbaseline" : @"Text baseline",
+            @"leadingdistribution" : @"Leading distribution",
+            @"fontfeatures" : @"Font features", @"fontvariations" : @"Font variations",
+            @"decorationcolor" : @"Decoration color",
+            @"decorationstyle" : @"Decoration style",
+            @"decorationthickness" : @"Decoration thickness",
+            @"backgroundcolor" : @"Background color",
+            @"selectioncolor" : @"Selection color",
+            @"codepoint" : @"Code point", @"fontpackage" : @"Font package",
+            @"semanticlabel" : @"Semantic label",
+            @"matchtextdirection" : @"Match text direction",
+            @"opticalsize" : @"Optical size",
+            @"applytextscaling" : @"Apply text scaling"
+        };
+    });
+    NSString *normalized = [self normalizedDiagnosticName:name];
+    return titles[normalized] ?: name.capitalizedString ?: @"Property";
+}
+
++ (NSArray<PVFlutterInspectorFieldModel *> *)diagnosticFieldsFromObjects:(NSArray *)objects
+                                                             allowedNames:(NSSet<NSString *> *)allowedNames {
+    NSMutableArray<PVFlutterInspectorFieldModel *> *fields = [NSMutableArray array];
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    for (id value in objects ?: @[]) {
+        if (![value isKindOfClass:NSDictionary.class]) continue;
+        NSDictionary *property = value;
+        NSString *name = [property[@"name"] isKindOfClass:NSString.class] ? property[@"name"] : @"";
+        NSString *normalizedName = [self normalizedDiagnosticName:name];
+        if (![allowedNames containsObject:normalizedName]) continue;
+        NSString *description = [property[@"description"] isKindOfClass:NSString.class]
+            ? property[@"description"] : @"";
+        NSString *level = [property[@"level"] isKindOfClass:NSString.class] ? property[@"level"] : @"";
+        if ([level isEqual:@"hidden"] || description.length == 0 || [description isEqual:@"null"]) continue;
+        NSString *deduplicationKey = [NSString stringWithFormat:@"%@|%@", normalizedName, description];
+        if ([seen containsObject:deduplicationKey]) continue;
+        PVFlutterInspectorFieldModel *field = [self diagnosticFieldFromDictionary:property];
+        if (!field) continue;
+        field.title = [self displayTitleForDiagnosticName:name];
+        [fields addObject:field];
+        [seen addObject:deduplicationKey];
+    }
+    return fields.copy;
+}
+
++ (NSString *)textPreviewFromDetail:(PVFlutterNodeDetail *)detail {
+    PVFlutterDetailSection *rendering = [self sectionWithIdentifier:@"rendering" detail:detail];
+    for (PVFlutterDetailField *field in rendering.fields ?: @[]) {
+        if ([field.identifier isEqual:@"text"] && field.textValue.length) return field.textValue;
+    }
+    return nil;
+}
+
++ (void)appendTextSectionsFromObjects:(NSArray *)objects
+                          textPreview:(NSString *)textPreview
+                                   to:(NSMutableArray<PVFlutterInspectorSectionModel *> *)sections {
+    NSSet *contentNames = [NSSet setWithArray:@[
+        @"data", @"text", @"semanticslabel", @"textalign", @"textdirection",
+        @"softwrap", @"overflow", @"maxlines", @"textwidthbasis",
+        @"textheightbehavior", @"textscaler", @"textscalefactor"
+    ]];
+    NSSet *fontNames = [NSSet setWithArray:@[
+        @"inherit", @"fontfamily", @"fontfamilyfallback", @"fontsize",
+        @"fontweight", @"fontstyle", @"height", @"leadingdistribution",
+        @"letterspacing", @"wordspacing", @"textbaseline", @"locale",
+        @"fontfeatures", @"fontvariations", @"decoration", @"decorationstyle",
+        @"decorationthickness", @"shadows"
+    ]];
+    NSSet *colorNames = [NSSet setWithArray:@[
+        @"color", @"backgroundcolor", @"decorationcolor", @"selectioncolor"
+    ]];
+    NSMutableArray *contentFields = [[self diagnosticFieldsFromObjects:objects
+                                                           allowedNames:contentNames] mutableCopy];
+    BOOL hasText = NO;
+    for (PVFlutterInspectorFieldModel *field in contentFields) {
+        if ([field.title isEqual:@"Text"]) {
+            hasText = YES;
+            break;
+        }
+    }
+    if (!hasText && textPreview.length) {
+        PVFlutterInspectorFieldModel *text = [self textField:@"Text" value:textPreview secondary:@""];
+        text.style = PVFlutterInspectorFieldStyleTextArea;
+        [contentFields insertObject:text atIndex:0];
+    }
+    NSArray *fontFields = [self diagnosticFieldsFromObjects:objects allowedNames:fontNames];
+    NSArray *colorFields = [self diagnosticFieldsFromObjects:objects allowedNames:colorNames];
+    if (contentFields.count) {
+        [sections addObject:[self section:@"Text" subtitle:@""
+                                   accent:[self widgetAccent] fields:contentFields]];
+    }
+    if (fontFields.count) {
+        [sections addObject:[self section:@"Font" subtitle:@""
+                                   accent:[self widgetAccent] fields:fontFields]];
+    }
+    if (colorFields.count) {
+        [sections addObject:[self section:@"Color" subtitle:@""
+                                   accent:[self paintAccent] fields:colorFields]];
+    }
+}
+
++ (void)appendIconSectionsFromObjects:(NSArray *)objects
+                              preview:(NSImage *)preview
+                                   to:(NSMutableArray<PVFlutterInspectorSectionModel *> *)sections {
+    NSSet *identityNames = [NSSet setWithArray:@[
+        @"icon", @"codepoint", @"fontfamily", @"fontpackage", @"semanticlabel",
+        @"semanticslabel", @"textdirection", @"matchtextdirection"
+    ]];
+    NSSet *appearanceNames = [NSSet setWithArray:@[
+        @"size", @"color", @"fill", @"weight", @"grade", @"opticalsize",
+        @"shadows", @"applytextscaling"
+    ]];
+    NSMutableArray *iconFields = [NSMutableArray array];
+    if (preview) [iconFields addObject:[self imageField:@"Preview" image:preview]];
+    [iconFields addObjectsFromArray:[self diagnosticFieldsFromObjects:objects
+                                                           allowedNames:identityNames]];
+    NSArray *appearanceFields = [self diagnosticFieldsFromObjects:objects
+                                                      allowedNames:appearanceNames];
+    if (iconFields.count) {
+        [sections addObject:[self section:@"Icon" subtitle:@""
+                                   accent:[self widgetAccent] fields:iconFields]];
+    }
+    if (appearanceFields.count) {
+        [sections addObject:[self section:@"Appearance" subtitle:@""
+                                   accent:[self paintAccent] fields:appearanceFields]];
+    }
+}
+
 + (void)appendRelationSection:(NSString *)identifier
                         title:(NSString *)title
                        accent:(NSColor *)accent
@@ -299,7 +436,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         [fields addObjectsFromArray:[self diagnosticFieldsFromObjects:properties technical:NO]];
     }
     if (fields.count) {
-        [sections addObject:[self section:title subtitle:@"Attached to the selected visual node" accent:accent fields:fields]];
+        [sections addObject:[self section:title subtitle:@"" accent:accent fields:fields]];
     }
 }
 
@@ -517,6 +654,14 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     return field;
 }
 
++ (PVFlutterInspectorFieldModel *)imageField:(NSString *)title image:(NSImage *)image {
+    PVFlutterInspectorFieldModel *field = [PVFlutterInspectorFieldModel new];
+    field.title = title ?: @"";
+    field.imageValue = image;
+    field.style = PVFlutterInspectorFieldStyleImage;
+    return field;
+}
+
 + (PVFlutterInspectorFieldModel *)JSONField:(NSString *)title value:(NSString *)value {
     PVFlutterInspectorFieldModel *field = [PVFlutterInspectorFieldModel new];
     field.title = title ?: @"";
@@ -532,7 +677,8 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     }
     NSString *base = [[widgetType componentsSeparatedByString:@"<"] firstObject] ?: widgetType;
     if ([base containsString:@"Text"] || [base isEqual:@"RichText"]) return @"text";
-    if ([base containsString:@"Image"] || [base isEqual:@"Icon"]) return @"image";
+    if ([base isEqual:@"Icon"]) return @"icon";
+    if ([base containsString:@"Image"]) return @"image";
     if ([base containsString:@"Button"] || [base isEqual:@"Switch"] || [base isEqual:@"Slider"]) return @"control";
     if ([base isEqual:@"SizedBox"] || [base isEqual:@"Spacer"]) return @"spacing";
     if ([base containsString:@"Scroll"] || [base containsString:@"ListView"] || [base containsString:@"GridView"]) return @"scroll";
@@ -541,6 +687,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 
 + (NSString *)propertySectionTitleForKind:(NSString *)kind widgetType:(NSString *)widgetType {
     if ([kind isEqual:@"text"]) return @"Text";
+    if ([kind isEqual:@"icon"]) return @"Icon";
     if ([kind isEqual:@"image"]) return @"Image";
     if ([kind isEqual:@"control"]) return @"Control";
     if ([kind isEqual:@"scroll"]) return @"Scroll behavior";
@@ -628,6 +775,76 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 
 @end
 
+@interface PVFlutterInspectorCardTitleControl : PVDetailDashboardCardTitleControl
+@end
+
+@implementation PVFlutterInspectorCardTitleControl
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    if (self = [super initWithFrame:frameRect]) {
+        self.label.maximumNumberOfLines = 0;
+        self.label.cell.wraps = YES;
+        self.label.cell.usesSingleLineMode = NO;
+        self.label.lineBreakMode = NSLineBreakByCharWrapping;
+    }
+    return self;
+}
+
+- (NSSize)contentSizeForImageView:(NSImageView *)imageView {
+    if (imageView.hidden || imageView.image == nil) return NSZeroSize;
+    NSSize size = imageView.image.size;
+    return NSMakeSize(ceil(size.width), ceil(size.height));
+}
+
+- (CGFloat)labelWidthForControlWidth:(CGFloat)width {
+    NSSize iconSize = [self contentSizeForImageView:self.iconImageView];
+    NSSize disclosureSize = [self contentSizeForImageView:self.disclosureImageView];
+    CGFloat leading = DashboardHorInset + (iconSize.width > 0 ? iconSize.width + 5 : 0);
+    CGFloat trailing = DashboardHorInset + (disclosureSize.width > 0 ? disclosureSize.width + 5 : 0);
+    return MAX(20, width - leading - trailing);
+}
+
+- (void)layout {
+    [super layout];
+    CGFloat width = NSWidth(self.bounds);
+    CGFloat height = NSHeight(self.bounds);
+    NSSize iconSize = [self contentSizeForImageView:self.iconImageView];
+    NSSize disclosureSize = [self contentSizeForImageView:self.disclosureImageView];
+    CGFloat iconX = DashboardHorInset;
+    if (iconSize.width > 0) {
+        self.iconImageView.frame = NSMakeRect(iconX,
+                                              PVFlutterCenteredOrigin(0, height, iconSize.height),
+                                              iconSize.width, iconSize.height);
+    } else {
+        self.iconImageView.frame = NSZeroRect;
+    }
+    CGFloat disclosureX = width - DashboardHorInset - disclosureSize.width;
+    if (disclosureSize.width > 0) {
+        self.disclosureImageView.frame = NSMakeRect(disclosureX,
+                                                    PVFlutterCenteredOrigin(0, height, disclosureSize.height),
+                                                    disclosureSize.width, disclosureSize.height);
+    } else {
+        self.disclosureImageView.frame = NSZeroRect;
+    }
+    CGFloat labelX = DashboardHorInset + (iconSize.width > 0 ? iconSize.width + 5 : 0);
+    CGFloat labelWidth = [self labelWidthForControlWidth:width];
+    CGFloat labelHeight = ceil([self.label sizeThatFits:NSMakeSize(labelWidth, CGFLOAT_MAX)].height);
+    self.label.frame = NSMakeRect(labelX,
+                                  PVFlutterCenteredOrigin(0, height, labelHeight),
+                                  labelWidth, labelHeight);
+}
+
+- (NSSize)sizeThatFits:(NSSize)limitedSize {
+    CGFloat labelWidth = [self labelWidthForControlWidth:limitedSize.width];
+    CGFloat labelHeight = ceil([self.label sizeThatFits:NSMakeSize(labelWidth, CGFLOAT_MAX)].height);
+    NSSize iconSize = [self contentSizeForImageView:self.iconImageView];
+    NSSize disclosureSize = [self contentSizeForImageView:self.disclosureImageView];
+    limitedSize.height = MAX(30, MAX(labelHeight, MAX(iconSize.height, disclosureSize.height)) + 10);
+    return limitedSize;
+}
+
+@end
+
 @interface PVFlutterInspectorMetricView : PVDetailNumberInputView
 - (void)setName:(NSString *)name value:(NSString *)value;
 @end
@@ -639,6 +856,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         self.viewStyle = PVDetailNumberInputViewStyleHorizontal;
         self.textFieldView.textField.editable = NO;
         self.textFieldView.textField.selectable = YES;
+        self.textFieldView.textField.font = NSFontMake(PVFlutterValueFontSize);
     }
     return self;
 }
@@ -646,6 +864,23 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 - (void)setName:(NSString *)name value:(NSString *)value {
     self.title = name.uppercaseString ?: @"";
     self.textFieldView.textField.stringValue = value ?: @"";
+}
+
+@end
+
+@interface PVFlutterInspectorReadOnlyCheckbox : NSButton
+@end
+
+@implementation PVFlutterInspectorReadOnlyCheckbox
+
+- (void)mouseDown:(NSEvent *)event {
+}
+
+- (void)keyDown:(NSEvent *)event {
+}
+
+- (BOOL)acceptsFirstResponder {
+    return NO;
 }
 
 @end
@@ -658,8 +893,8 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 @property(nonatomic, strong) NSTextField *valueLabel;
 @property(nonatomic, strong) NSScrollView *JSONScrollView;
 @property(nonatomic, strong) NSTextView *JSONTextView;
-@property(nonatomic, strong) PVDetailLabel *secondaryLabel;
 @property(nonatomic, strong) PVDetailBaseView *colorSwatch;
+@property(nonatomic, strong) NSImageView *previewImageView;
 @property(nonatomic, strong) NSButton *booleanCheckbox;
 @property(nonatomic, strong) CALayer *separatorLayer;
 @property(nonatomic, copy) NSArray<PVFlutterInspectorMetricView *> *metricViews;
@@ -668,9 +903,10 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 - (void)ensureNumberInputView;
 - (void)ensureValueLabel;
 - (void)ensureJSONTextView;
-- (void)ensureSecondaryLabel;
 - (void)ensureColorSwatch;
+- (void)ensurePreviewImageView;
 - (void)ensureBooleanCheckbox;
+- (CGFloat)valueControlHeightForWidth:(CGFloat)width;
 @end
 
 @implementation PVFlutterInspectorFieldView
@@ -678,9 +914,12 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 - (instancetype)initWithFrame:(NSRect)frameRect {
     if (self = [super initWithFrame:frameRect]) {
         self.titleLabel = [PVDetailLabel new];
-        self.titleLabel.font = [NSFont boldSystemFontOfSize:12];
+        self.titleLabel.font = [NSFont boldSystemFontOfSize:PVFlutterFieldTitleFontSize];
         self.titleLabel.textColor = NSColor.labelColor;
-        self.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        self.titleLabel.maximumNumberOfLines = 0;
+        self.titleLabel.cell.wraps = YES;
+        self.titleLabel.cell.usesSingleLineMode = NO;
+        self.titleLabel.lineBreakMode = NSLineBreakByCharWrapping;
         [self addSubview:self.titleLabel];
 
         self.separatorLayer = [CALayer layer];
@@ -699,15 +938,17 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     self.valueContainer.insets = NSEdgeInsetsMake(3, 6, 3, 6);
     self.valueContainer.textField.cell = [NSTextFieldCell new];
     self.valueContainer.textField.cell.focusRingType = NSFocusRingTypeNone;
-    self.valueContainer.textField.cell.usesSingleLineMode = YES;
-    self.valueContainer.textField.cell.lineBreakMode = NSLineBreakByTruncatingTail;
-    self.valueContainer.textField.cell.scrollable = YES;
+    self.valueContainer.textField.cell.usesSingleLineMode = NO;
+    self.valueContainer.textField.cell.wraps = YES;
+    self.valueContainer.textField.cell.lineBreakMode = NSLineBreakByWordWrapping;
+    self.valueContainer.textField.cell.scrollable = NO;
+    self.valueContainer.textField.maximumNumberOfLines = 0;
     self.valueContainer.textField.editable = NO;
     self.valueContainer.textField.selectable = YES;
     self.valueContainer.textField.bezeled = NO;
     self.valueContainer.textField.drawsBackground = NO;
     self.valueContainer.textField.textColor = [NSColor colorNamed:@"DashboardCardValueColor"];
-    self.valueContainer.textField.font = NSFontMake(12);
+    self.valueContainer.textField.font = NSFontMake(PVFlutterValueFontSize);
     [self addSubview:self.valueContainer];
 }
 
@@ -717,6 +958,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     self.numberInputView.viewStyle = PVDetailNumberInputViewStyleHorizontal;
     self.numberInputView.textFieldView.textField.editable = NO;
     self.numberInputView.textFieldView.textField.selectable = YES;
+    self.numberInputView.textFieldView.textField.font = NSFontMake(PVFlutterValueFontSize);
     [self addSubview:self.numberInputView];
 }
 
@@ -746,18 +988,6 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     [self addSubview:self.JSONScrollView];
 }
 
-- (void)ensureSecondaryLabel {
-    if (self.secondaryLabel) return;
-    self.secondaryLabel = [PVDetailLabel new];
-    self.secondaryLabel.font = [NSFont systemFontOfSize:9 weight:NSFontWeightMedium];
-    self.secondaryLabel.textColor = NSColor.secondaryLabelColor;
-    self.secondaryLabel.alignment = NSTextAlignmentCenter;
-    self.secondaryLabel.wantsLayer = YES;
-    self.secondaryLabel.layer.cornerRadius = 5;
-    self.secondaryLabel.layer.backgroundColor = [NSColor.secondaryLabelColor colorWithAlphaComponent:0.10].CGColor;
-    [self addSubview:self.secondaryLabel];
-}
-
 - (void)ensureColorSwatch {
     if (self.colorSwatch) return;
     self.colorSwatch = [PVDetailBaseView new];
@@ -767,11 +997,20 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     [self addSubview:self.colorSwatch];
 }
 
+- (void)ensurePreviewImageView {
+    if (self.previewImageView) return;
+    self.previewImageView = [NSImageView new];
+    self.previewImageView.imageAlignment = NSImageAlignLeft;
+    self.previewImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
+    [self addSubview:self.previewImageView];
+}
+
 - (void)ensureBooleanCheckbox {
     if (self.booleanCheckbox) return;
-    self.booleanCheckbox = [NSButton checkboxWithTitle:@"" target:nil action:nil];
-    self.booleanCheckbox.enabled = NO;
-    self.booleanCheckbox.font = [NSFont systemFontOfSize:11];
+    self.booleanCheckbox = [PVFlutterInspectorReadOnlyCheckbox new];
+    [self.booleanCheckbox setButtonType:NSButtonTypeSwitch];
+    self.booleanCheckbox.title = @"";
+    self.booleanCheckbox.font = NSFontMake(PVFlutterCardTitleFontSize);
     [self addSubview:self.booleanCheckbox];
 }
 
@@ -779,7 +1018,8 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     _model = model;
     self.titleLabel.stringValue = model.title ?: @"";
     self.titleLabel.font = model.style == PVFlutterInspectorFieldStyleInfo
-        ? NSFontMake(11) : [NSFont boldSystemFontOfSize:12];
+        ? NSFontMake(PVFlutterInfoFontSize)
+        : [NSFont boldSystemFontOfSize:PVFlutterFieldTitleFontSize];
     self.titleLabel.textColor = model.style == PVFlutterInspectorFieldStyleInfo
         ? NSColor.secondaryLabelColor : NSColor.labelColor;
     if (model.style == PVFlutterInspectorFieldStyleNumber) {
@@ -789,25 +1029,26 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     } else if (model.style == PVFlutterInspectorFieldStyleInfo) {
         [self ensureValueLabel];
         self.valueLabel.stringValue = model.value ?: @"";
-        self.valueLabel.font = [NSFont monospacedSystemFontOfSize:10.5 weight:NSFontWeightRegular];
-        self.valueLabel.maximumNumberOfLines = 3;
+        self.valueLabel.font = NSFontMake(PVFlutterInfoFontSize);
+        self.valueLabel.maximumNumberOfLines = 0;
     } else if (model.style == PVFlutterInspectorFieldStyleJSON ||
                model.style == PVFlutterInspectorFieldStyleTextArea) {
         [self ensureJSONTextView];
         self.JSONTextView.string = model.value ?: @"";
         self.JSONTextView.font = model.style == PVFlutterInspectorFieldStyleTextArea
-            ? NSFontMake(12) : [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular];
+            ? NSFontMake(PVFlutterValueFontSize)
+            : [NSFont monospacedSystemFontOfSize:PVFlutterValueFontSize
+                                          weight:NSFontWeightRegular];
     } else if (model.style == PVFlutterInspectorFieldStyleBoolean) {
         [self ensureBooleanCheckbox];
+    } else if (model.style == PVFlutterInspectorFieldStyleImage) {
+        [self ensurePreviewImageView];
+        self.previewImageView.image = model.imageValue;
     } else if (model.style != PVFlutterInspectorFieldStyleRect &&
                model.style != PVFlutterInspectorFieldStyleSize) {
         [self ensureValueContainer];
         self.valueContainer.textField.stringValue = model.value ?: @"";
-        self.valueContainer.textField.font = NSFontMake(12);
-    }
-    if (model.secondaryText.length) {
-        [self ensureSecondaryLabel];
-        self.secondaryLabel.stringValue = model.secondaryText;
+        self.valueContainer.textField.font = NSFontMake(PVFlutterValueFontSize);
     }
     if (model.style == PVFlutterInspectorFieldStyleColor) {
         [self ensureColorSwatch];
@@ -817,7 +1058,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         self.booleanCheckbox.state = model.booleanValue ? NSControlStateValueOn : NSControlStateValueOff;
         self.booleanCheckbox.attributedTitle = $(model.title ?: @"")
             .textColor([NSColor colorNamed:@"DashboardCardValueColor"])
-            .font(NSFontMake(13)).attrString;
+            .font(NSFontMake(PVFlutterCardTitleFontSize)).attrString;
     }
     [self rebuildMetrics];
 }
@@ -864,31 +1105,44 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         : [NSString stringWithFormat:@"%.2f", value];
 }
 
+- (CGFloat)valueControlHeightForWidth:(CGFloat)width {
+    BOOL isColor = self.model.style == PVFlutterInspectorFieldStyleColor;
+    NSFont *font = NSFontMake(isColor ? PVFlutterCardTitleFontSize : PVFlutterValueFontSize);
+    CGFloat textWidth = MAX(20, width - (isColor ? 36 : 12));
+    NSRect textRect = [(self.model.value ?: @"") boundingRectWithSize:NSMakeSize(textWidth, CGFLOAT_MAX)
+                                                           options:NSStringDrawingUsesLineFragmentOrigin |
+                                                                   NSStringDrawingUsesFontLeading
+                                                        attributes:@{NSFontAttributeName:font}];
+    CGFloat minimumHeight = isColor ? 30 : PVDetailNumberInputHorizontalHeight;
+    return MAX(minimumHeight, ceil(NSHeight(textRect)) + 6);
+}
+
 - (void)layout {
     [super layout];
     CGFloat width = NSWidth(self.bounds);
-    CGFloat titleHeight = ceil([self.titleLabel sizeThatFits:NSMakeSize(width, CGFLOAT_MAX)].height);
-    CGFloat contentY = titleHeight + DashboardAttrItemVerInterspace;
+    BOOL hidesTitle = self.model.style == PVFlutterInspectorFieldStyleBoolean ||
+                      self.model.style == PVFlutterInspectorFieldStyleNumber;
+    CGFloat titleHeight = hidesTitle ? 0 : ceil([self.titleLabel sizeThatFits:NSMakeSize(width, CGFLOAT_MAX)].height);
+    CGFloat contentY = hidesTitle ? 0 : titleHeight + DashboardAttrItemVerInterspace;
     self.separatorLayer.frame = CGRectZero;
-    self.titleLabel.hidden = self.model.style == PVFlutterInspectorFieldStyleBoolean ||
-                             self.model.style == PVFlutterInspectorFieldStyleNumber;
+    self.titleLabel.hidden = hidesTitle;
     self.titleLabel.frame = NSMakeRect(0, 0, width, titleHeight);
     self.valueContainer.hidden = YES;
     self.numberInputView.hidden = self.model.style != PVFlutterInspectorFieldStyleNumber;
     self.valueLabel.hidden = self.model.style != PVFlutterInspectorFieldStyleInfo;
     self.JSONScrollView.hidden = self.model.style != PVFlutterInspectorFieldStyleJSON &&
                                  self.model.style != PVFlutterInspectorFieldStyleTextArea;
-    self.secondaryLabel.hidden = YES;
     self.colorSwatch.hidden = self.model.style != PVFlutterInspectorFieldStyleColor;
+    self.previewImageView.hidden = self.model.style != PVFlutterInspectorFieldStyleImage;
     self.booleanCheckbox.hidden = self.model.style != PVFlutterInspectorFieldStyleBoolean;
     if (self.model.style == PVFlutterInspectorFieldStyleInfo) {
-        CGFloat keyWidth = MIN(72, floor(width * 0.34));
-        CGFloat valueX = keyWidth + 7;
+        CGFloat keyWidth = MIN(92, floor(width * 0.42));
+        CGFloat valueX = keyWidth + 8;
+        CGFloat keyHeight = ceil([self.titleLabel sizeThatFits:NSMakeSize(keyWidth, CGFLOAT_MAX)].height);
         CGFloat valueHeight = ceil([self.valueLabel sizeThatFits:
             NSMakeSize(MAX(20, width - valueX), CGFLOAT_MAX)].height);
-        CGFloat rowHeight = MAX(titleHeight, valueHeight);
-        self.titleLabel.frame = NSMakeRect(0, 0, keyWidth, rowHeight);
-        self.valueLabel.frame = NSMakeRect(valueX, 0, MAX(20, width - valueX), rowHeight);
+        self.titleLabel.frame = NSMakeRect(0, 0, keyWidth, keyHeight);
+        self.valueLabel.frame = NSMakeRect(valueX, 0, MAX(20, width - valueX), valueHeight);
         return;
     }
     if (self.model.style == PVFlutterInspectorFieldStyleRect ||
@@ -905,8 +1159,17 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         }];
         return;
     }
+    if (self.model.style == PVFlutterInspectorFieldStyleImage) {
+        CGFloat imageHeight = MAX(40, NSHeight(self.bounds) - contentY);
+        self.previewImageView.frame = NSMakeRect(0, contentY, width, imageHeight);
+        return;
+    }
     if (self.model.style == PVFlutterInspectorFieldStyleBoolean) {
-        self.booleanCheckbox.frame = self.bounds;
+        NSSize checkboxSize = [self.booleanCheckbox sizeThatFits:NSMakeSize(width, CGFLOAT_MAX)];
+        CGFloat checkboxHeight = MIN(NSHeight(self.bounds), ceil(checkboxSize.height));
+        self.booleanCheckbox.frame = NSMakeRect(0,
+                                                PVFlutterCenteredOrigin(0, NSHeight(self.bounds), checkboxHeight),
+                                                width, checkboxHeight);
         return;
     }
     if (self.model.style == PVFlutterInspectorFieldStyleNumber) {
@@ -922,44 +1185,41 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     }
 
     self.valueContainer.hidden = NO;
-    CGFloat controlHeight = self.model.style == PVFlutterInspectorFieldStyleColor
-        ? 30 : PVDetailNumberInputHorizontalHeight;
+    CGFloat controlHeight = [self valueControlHeightForWidth:width];
     self.valueContainer.frame = NSMakeRect(0, contentY, width, controlHeight);
     self.valueContainer.textField.font = self.model.style == PVFlutterInspectorFieldStyleColor
-        ? NSFontMake(13) : NSFontMake(12);
+        ? NSFontMake(PVFlutterCardTitleFontSize) : NSFontMake(PVFlutterValueFontSize);
     CGFloat leftInset = 6;
     CGFloat rightInset = 6;
     if (self.model.style == PVFlutterInspectorFieldStyleColor) {
         self.colorSwatch.frame = NSMakeRect(8, contentY + floor((controlHeight - 16) / 2.0), 16, 16);
         leftInset = 30;
     }
-    if (self.model.secondaryText.length) {
-        CGFloat badgeWidth = MIN(88, ceil([self.model.secondaryText sizeWithAttributes:
-            @{NSFontAttributeName:self.secondaryLabel.font}].width) + 13);
-        self.secondaryLabel.hidden = NO;
-        self.secondaryLabel.frame = NSMakeRect(MAX(leftInset, width - badgeWidth - 6),
-                                               contentY + floor((controlHeight - 14) / 2.0),
-                                               badgeWidth, 14);
-        rightInset = badgeWidth + 12;
-    }
     self.valueContainer.insets = NSEdgeInsetsMake(3, leftInset, 3, rightInset);
 }
 
 - (NSSize)sizeThatFits:(NSSize)limitedSize {
-    CGFloat titleHeight = ceil([self.titleLabel sizeThatFits:NSMakeSize(limitedSize.width, CGFLOAT_MAX)].height);
-    CGFloat contentY = titleHeight + DashboardAttrItemVerInterspace;
+    BOOL hidesTitle = self.model.style == PVFlutterInspectorFieldStyleBoolean ||
+                      self.model.style == PVFlutterInspectorFieldStyleNumber;
+    CGFloat titleHeight = hidesTitle ? 0 : ceil([self.titleLabel sizeThatFits:NSMakeSize(limitedSize.width, CGFLOAT_MAX)].height);
+    CGFloat contentY = hidesTitle ? 0 : titleHeight + DashboardAttrItemVerInterspace;
     if (self.model.style == PVFlutterInspectorFieldStyleInfo) {
-        CGFloat keyWidth = MIN(72, floor(limitedSize.width * 0.34));
-        CGFloat valueWidth = MAX(20, limitedSize.width - keyWidth - 7);
+        CGFloat keyWidth = MIN(92, floor(limitedSize.width * 0.42));
+        CGFloat valueWidth = MAX(20, limitedSize.width - keyWidth - 8);
+        CGFloat keyHeight = ceil([self.titleLabel sizeThatFits:NSMakeSize(keyWidth, CGFLOAT_MAX)].height);
         CGFloat valueHeight = ceil([self.valueLabel sizeThatFits:NSMakeSize(valueWidth, CGFLOAT_MAX)].height);
-        limitedSize.height = MAX(titleHeight, valueHeight);
+        limitedSize.height = MAX(keyHeight, valueHeight);
         return limitedSize;
     }
     if (self.model.style == PVFlutterInspectorFieldStyleRect ||
         self.model.style == PVFlutterInspectorFieldStyleSize) {
-        NSUInteger rows = self.model.style == PVFlutterInspectorFieldStyleRect ? 2 : 1;
+        NSUInteger rows = self.model.style == PVFlutterInspectorFieldStyleSize ? 1 : 2;
         limitedSize.height = contentY + rows * PVDetailNumberInputHorizontalHeight +
                              (rows - 1) * DashboardAttrItemVerInterspace;
+        return limitedSize;
+    }
+    if (self.model.style == PVFlutterInspectorFieldStyleImage) {
+        limitedSize.height = contentY + 52;
         return limitedSize;
     }
     if (self.model.style == PVFlutterInspectorFieldStyleJSON ||
@@ -986,8 +1246,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         limitedSize.height = PVDetailNumberInputHorizontalHeight;
         return limitedSize;
     }
-    CGFloat controlHeight = self.model.style == PVFlutterInspectorFieldStyleColor
-        ? 30 : PVDetailNumberInputHorizontalHeight;
+    CGFloat controlHeight = [self valueControlHeightForWidth:limitedSize.width];
     limitedSize.height = contentY + controlHeight;
     return limitedSize;
 }
@@ -1015,13 +1274,12 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         self.backgroundEffectView.state = NSVisualEffectStateActive;
         [self addSubview:self.backgroundEffectView];
 
-        self.titleControl = [PVDetailDashboardCardTitleControl new];
+        self.titleControl = [PVFlutterInspectorCardTitleControl new];
         [self.titleControl addTarget:self clickAction:@selector(toggleCollapsed)];
-        self.titleControl.toolTip = @"Expand or collapse section";
         [self addSubview:self.titleControl];
 
         self.subtitleLabel = [PVDetailLabel new];
-        self.subtitleLabel.font = [NSFont systemFontOfSize:10];
+        self.subtitleLabel.font = NSFontMake(PVFlutterCaptionFontSize);
         self.subtitleLabel.textColor = NSColor.tertiaryLabelColor;
         self.subtitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self addSubview:self.subtitleLabel];
@@ -1068,7 +1326,12 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     if ([title containsString:@"interaction"] || [title containsString:@"semantics"]) {
         return NSImageMake(@"dashboard_control");
     }
-    if ([title containsString:@"text"]) return NSImageMake(@"dashboard_label");
+    if ([title containsString:@"text"] || [title containsString:@"font"]) {
+        return NSImageMake(@"dashboard_label");
+    }
+    if ([title isEqual:@"icon"]) return NSImageMake(@"dashboard_imageview");
+    if ([title containsString:@"appearance"]) return NSImageMake(@"dashboard_layer");
+    if ([title containsString:@"color"]) return NSImageMake(@"dashboard_layer");
     return NSImageMake(@"dashboard_custom");
 }
 
@@ -1090,9 +1353,10 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     [super layout];
     CGFloat width = NSWidth(self.bounds);
     self.backgroundEffectView.frame = self.bounds;
-    self.titleControl.frame = NSMakeRect(0, 0, width, 30);
+    CGFloat titleHeight = [self.titleControl sizeThatFits:NSMakeSize(width, CGFLOAT_MAX)].height;
+    self.titleControl.frame = NSMakeRect(0, 0, width, titleHeight);
     if (!self.collapsed) {
-        CGFloat y = 35;
+        CGFloat y = titleHeight + 5;
         for (PVFlutterInspectorFieldView *view in self.fieldViews) {
             CGFloat fieldWidth = MAX(0, width - PVFlutterPanelInset * 2);
             CGFloat height = [view sizeThatFits:NSMakeSize(fieldWidth, CGFLOAT_MAX)].height;
@@ -1103,9 +1367,11 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 }
 
 - (NSSize)sizeThatFits:(NSSize)limitedSize {
-    CGFloat height = 30;
+    CGFloat titleHeight = [self.titleControl sizeThatFits:
+        NSMakeSize(limitedSize.width, CGFLOAT_MAX)].height;
+    CGFloat height = titleHeight;
     if (!self.collapsed) {
-        height = 35;
+        height = titleHeight + 5;
         CGFloat fieldWidth = MAX(0, limitedSize.width - PVFlutterPanelInset * 2);
         for (PVFlutterInspectorFieldView *view in self.fieldViews) {
             height += [view sizeThatFits:NSMakeSize(fieldWidth, CGFLOAT_MAX)].height;
@@ -1123,12 +1389,8 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
 @interface PVFlutterInspectorHeaderView : PVDetailBaseView
 @property(nonatomic, strong) PVDetailVisualEffectView *backgroundEffectView;
 @property(nonatomic, strong) PVDetailDashboardCardTitleControl *titleControl;
-@property(nonatomic, strong) PVDetailLabel *titleLabel;
-@property(nonatomic, strong) PVDetailLabel *kindLabel;
 @property(nonatomic, strong) NSArray<PVDetailLabel *> *prefixLabels;
 @property(nonatomic, strong) NSArray<PVDetailLabel *> *typeLabels;
-@property(nonatomic, strong) PVDetailBaseView *capabilitiesBackground;
-@property(nonatomic, strong) PVDetailLabel *capabilitiesLabel;
 @property(nonatomic, strong) PVFlutterInspectorPresentation *presentation;
 @end
 
@@ -1143,70 +1405,50 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
         self.backgroundEffectView.state = NSVisualEffectStateActive;
         [self addSubview:self.backgroundEffectView];
 
-        self.titleControl = [PVDetailDashboardCardTitleControl new];
+        self.titleControl = [PVFlutterInspectorCardTitleControl new];
         self.titleControl.label.stringValue = @"Flutter Widget";
         self.titleControl.iconImageView.image = NSImageMake(@"dashboard_custom");
         self.titleControl.disclosureImageView.hidden = YES;
         [self addSubview:self.titleControl];
 
-        self.titleLabel = [PVDetailLabel new];
-        self.titleLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
-        self.titleLabel.textColor = NSColor.labelColor;
-        self.titleLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
-        [self addSubview:self.titleLabel];
-        self.kindLabel = [PVDetailLabel new];
-        self.kindLabel.font = [NSFont systemFontOfSize:10];
-        self.kindLabel.textColor = NSColor.secondaryLabelColor;
-        [self addSubview:self.kindLabel];
-
         NSMutableArray *prefixes = [NSMutableArray array];
         NSMutableArray *types = [NSMutableArray array];
-        for (NSString *prefix in @[@"Element", @"Render"]) {
+        for (NSString *prefix in @[@"Widget", @"Element", @"Render"]) {
             PVDetailLabel *prefixLabel = [PVDetailLabel new];
             prefixLabel.stringValue = prefix;
-            prefixLabel.font = [NSFont systemFontOfSize:10.5];
+            prefixLabel.font = NSFontMake(PVFlutterInfoFontSize);
             prefixLabel.textColor = NSColor.secondaryLabelColor;
             [self addSubview:prefixLabel];
             [prefixes addObject:prefixLabel];
             PVDetailLabel *typeLabel = [PVDetailLabel new];
-            typeLabel.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular];
+            typeLabel.font = NSFontMake(PVFlutterInfoFontSize);
             typeLabel.textColor = NSColor.labelColor;
-            typeLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+            typeLabel.maximumNumberOfLines = 0;
+            typeLabel.cell.wraps = YES;
+            typeLabel.cell.usesSingleLineMode = NO;
+            typeLabel.lineBreakMode = NSLineBreakByCharWrapping;
             [self addSubview:typeLabel];
             [types addObject:typeLabel];
         }
         self.prefixLabels = prefixes.copy;
         self.typeLabels = types.copy;
-
-        self.capabilitiesBackground = [PVDetailBaseView new];
-        self.capabilitiesBackground.backgroundColorName = @"DashboardCardValueBGColor";
-        self.capabilitiesBackground.layer.cornerRadius = 4;
-        [self addSubview:self.capabilitiesBackground];
-        self.capabilitiesLabel = [PVDetailLabel new];
-        self.capabilitiesLabel.font = [NSFont systemFontOfSize:10];
-        self.capabilitiesLabel.textColor = NSColor.secondaryLabelColor;
-        self.capabilitiesLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-        [self.capabilitiesBackground addSubview:self.capabilitiesLabel];
     }
     return self;
 }
 
 - (void)setPresentation:(PVFlutterInspectorPresentation *)presentation {
     _presentation = presentation;
-    self.titleLabel.stringValue = presentation.widgetType ?: @"Flutter Widget";
-    self.kindLabel.stringValue = [NSString stringWithFormat:@"%@ widget",
-                                  presentation.nodeKind.capitalizedString ?: @"Flutter"];
-    self.typeLabels[0].stringValue = presentation.elementType ?: @"Unknown";
-    self.typeLabels[1].stringValue = presentation.renderObjectType ?: @"Unknown";
+    self.typeLabels[0].stringValue = presentation.widgetType ?: @"Unknown";
+    self.typeLabels[1].stringValue = presentation.elementType ?: @"Unknown";
+    self.typeLabels[2].stringValue = presentation.renderObjectType ?: @"Unknown";
     self.titleControl.iconImageView.image = [self iconForKind:presentation.nodeKind];
-    self.capabilitiesLabel.stringValue = presentation.capabilities.count
-        ? [presentation.capabilities componentsJoinedByString:@"  ·  "] : @"No capabilities";
     [self setNeedsLayout:YES];
 }
 
 - (NSImage *)iconForKind:(NSString *)kind {
     NSString *name = @"square.3.layers.3d";
     if ([kind isEqual:@"text"]) name = @"textformat";
+    else if ([kind isEqual:@"icon"]) name = @"star";
     else if ([kind isEqual:@"image"]) name = @"photo";
     else if ([kind isEqual:@"control"]) name = @"slider.horizontal.3";
     else if ([kind isEqual:@"scroll"]) name = @"scroll";
@@ -1218,23 +1460,36 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
     [super layout];
     CGFloat width = NSWidth(self.bounds);
     self.backgroundEffectView.frame = self.bounds;
-    self.titleControl.frame = NSMakeRect(0, 0, width, 30);
-    self.titleLabel.frame = NSMakeRect(PVFlutterPanelInset, 35,
-                                       MAX(0, width - PVFlutterPanelInset * 2), 18);
-    self.kindLabel.frame = NSMakeRect(PVFlutterPanelInset, 53,
-                                      MAX(0, width - PVFlutterPanelInset * 2), 14);
+    CGFloat titleHeight = [self.titleControl sizeThatFits:NSMakeSize(width, CGFLOAT_MAX)].height;
+    self.titleControl.frame = NSMakeRect(0, 0, width, titleHeight);
+    CGFloat keyWidth = 52;
+    CGFloat valueX = PVFlutterPanelInset + keyWidth + 8;
+    CGFloat valueWidth = MAX(0, width - valueX - PVFlutterPanelInset);
+    __block CGFloat y = titleHeight + 7;
     [self.prefixLabels enumerateObjectsUsingBlock:^(PVDetailLabel *label, NSUInteger index, BOOL *stop) {
-        CGFloat y = 72 + index * 19;
-        label.frame = NSMakeRect(PVFlutterPanelInset, y, 48, 15);
-        self.typeLabels[index].frame = NSMakeRect(58, y, MAX(0, width - 68), 15);
+        CGFloat keyHeight = ceil([label sizeThatFits:NSMakeSize(keyWidth, CGFLOAT_MAX)].height);
+        CGFloat valueHeight = ceil([self.typeLabels[index] sizeThatFits:
+            NSMakeSize(valueWidth, CGFLOAT_MAX)].height);
+        CGFloat rowHeight = MAX(keyHeight, valueHeight);
+        label.frame = NSMakeRect(PVFlutterPanelInset, y, keyWidth, keyHeight);
+        self.typeLabels[index].frame = NSMakeRect(valueX, y, valueWidth, valueHeight);
+        y += rowHeight + 4;
     }];
-    self.capabilitiesBackground.frame = NSMakeRect(PVFlutterPanelInset, 112,
-                                                   MAX(0, width - PVFlutterPanelInset * 2), 24);
-    self.capabilitiesLabel.frame = NSInsetRect(self.capabilitiesBackground.bounds, 7, 4);
 }
 
 - (NSSize)sizeThatFits:(NSSize)limitedSize {
-    limitedSize.height = 148;
+    CGFloat keyWidth = 52;
+    CGFloat valueWidth = MAX(0, limitedSize.width - PVFlutterPanelInset * 2 - keyWidth - 8);
+    CGFloat titleHeight = [self.titleControl sizeThatFits:
+        NSMakeSize(limitedSize.width, CGFLOAT_MAX)].height;
+    __block CGFloat height = titleHeight + 7;
+    [self.prefixLabels enumerateObjectsUsingBlock:^(PVDetailLabel *label, NSUInteger index, BOOL *stop) {
+        CGFloat keyHeight = ceil([label sizeThatFits:NSMakeSize(keyWidth, CGFLOAT_MAX)].height);
+        CGFloat valueHeight = ceil([self.typeLabels[index] sizeThatFits:
+            NSMakeSize(valueWidth, CGFLOAT_MAX)].height);
+        height += MAX(keyHeight, valueHeight) + 4;
+    }];
+    limitedSize.height = height - 4 + 10;
     return limitedSize;
 }
 
@@ -1256,6 +1511,7 @@ typedef NS_ENUM(NSUInteger, PVFlutterInspectorFieldStyle) {
                                                                          action:@selector(selectDomain:)];
         self.segmentedControl.segmentStyle = NSSegmentStyleRounded;
         self.segmentedControl.controlSize = NSControlSizeSmall;
+        self.segmentedControl.font = NSFontMake(PVFlutterValueFontSize);
         self.segmentedControl.selectedSegment = 0;
         self.segmentedControl.toolTip = @"Choose Flutter inspector data";
         [self addSubview:self.segmentedControl];
