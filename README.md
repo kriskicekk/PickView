@@ -27,22 +27,13 @@ KKFlutterInspectorKit Flutter VM Service 与 Inspector 封装
 
 ### 接入被检查的 App
 
-项目当前主要通过本地 CocoaPods 路径接入，建议只在 Debug 配置中启用。
-
-原生 iOS 或 macOS App 只需要接入 Core：
+通过 CocoaPods 接入 `PickViewServer`，建议只在 Debug 配置中启用：
 
 ```ruby
-pod 'PickViewServer/Core', :path => '../PickView', :configurations => ['Debug']
+pod 'PickViewServer', '0.1.0', :configurations => ['Debug']
 ```
 
-包含 Flutter 页面的 iOS App 使用 Flutter subspec：
-
-```ruby
-pod 'KKFlutterInspectorKit', :path => '../KKFlutterInspectorKit', :configurations => ['Debug']
-pod 'PickViewServer/Flutter', :path => '../PickView', :configurations => ['Debug']
-```
-
-`PickViewServer/Flutter` 已经通过 podspec 依赖 `PickViewServer/Core` 和 `KKFlutterInspectorKit`。业务代码不需要再次 import、创建或启动 `KKFlutterInspectorKit`。上面的 `KKFlutterInspectorKit :path` 仅用于告诉 CocoaPods 去哪里找到当前尚未发布到 Specs 仓库的本地依赖；当 `PickViewServer` 与 `KKFlutterInspectorKit` 发布到同一个 CocoaPods Specs 源后，只需声明 `PickViewServer/Flutter`。
+`PickViewServer` 已经依赖 `PickViewCore`。在 iOS 中还会自动带入 `KKFlutterInspectorKit`，因此原生 App 和包含 Flutter 页面的 App 使用相同的 Pod 声明，业务代码不需要单独 import、创建或启动 InspectorKit。macOS 只会编译对应平台的服务端实现，不会接入 iOS Flutter 代码。
 
 然后执行：
 
@@ -127,8 +118,7 @@ dns-sd -B _pickview._tcp local.
 
 ### Flutter 调试说明
 
-- Flutter 页面必须使用 `PickViewServer/Flutter`；默认的 `PickViewServer/Core` 只提供原生 UIKit/AppKit 检查能力。
-- `PickViewServer/Flutter` 会自动带入并使用 `KKFlutterInspectorKit`，不需要业务侧单独初始化 InspectorKit。
+- iOS 的 `PickViewServer` 会自动带入并使用 `KKFlutterInspectorKit`，不需要业务侧单独声明或初始化 InspectorKit。
 - Flutter Engine 必须处于 Debug；部分 Profile 构建可能可用，Release 构建不可用。
 - 不需要手动配置 VM Service URI，不需要 MethodChannel，也不需要从日志解析 Dart Service 地址。
 - InspectorKit 从对应的 `FlutterEngine` 获取 `vmServiceUrl` 和 `isolateId`，然后通过 WebSocket JSON-RPC 调用 `ext.flutter.inspector.*`。
@@ -166,22 +156,13 @@ KKFlutterInspectorKit Flutter VM Service and Inspector integration
 
 ### Integrating the Inspected App
 
-The current setup uses local CocoaPods paths. Restrict the inspector to Debug builds whenever possible.
-
-For a native iOS or macOS app, integrate only the Core subspec:
+Integrate `PickViewServer` through CocoaPods and restrict it to Debug builds whenever possible:
 
 ```ruby
-pod 'PickViewServer/Core', :path => '../PickView', :configurations => ['Debug']
+pod 'PickViewServer', '0.1.0', :configurations => ['Debug']
 ```
 
-For an iOS app that embeds Flutter, use the Flutter subspec:
-
-```ruby
-pod 'KKFlutterInspectorKit', :path => '../KKFlutterInspectorKit', :configurations => ['Debug']
-pod 'PickViewServer/Flutter', :path => '../PickView', :configurations => ['Debug']
-```
-
-`PickViewServer/Flutter` already depends on `PickViewServer/Core` and `KKFlutterInspectorKit` through its podspec. Application code does not need to import, create, or start `KKFlutterInspectorKit` separately. The explicit `KKFlutterInspectorKit :path` line only tells CocoaPods where to find this local dependency while it is not published to a Specs repository. Once both pods are available from the same Specs source, declare only `PickViewServer/Flutter`.
+`PickViewServer` already depends on `PickViewCore`. On iOS it also brings in `KKFlutterInspectorKit` automatically, so native apps and apps containing Flutter pages use the same Pod declaration. Application code does not need to import, create, or start InspectorKit separately. On macOS, CocoaPods compiles only the matching server implementation and does not integrate the iOS Flutter sources.
 
 Run:
 
@@ -267,8 +248,7 @@ If the device does not appear:
 
 ### Flutter Inspection Notes
 
-- Flutter pages require `PickViewServer/Flutter`; the default `PickViewServer/Core` only provides native UIKit/AppKit inspection.
-- `PickViewServer/Flutter` brings in and uses `KKFlutterInspectorKit` automatically. The application does not initialize InspectorKit separately.
+- On iOS, `PickViewServer` brings in and uses `KKFlutterInspectorKit` automatically. The application does not declare or initialize InspectorKit separately.
 - The Flutter Engine must run in Debug. Some Profile configurations may work; Release does not.
 - No manual VM Service URI, MethodChannel, or log parsing is required.
 - InspectorKit obtains `vmServiceUrl` and `isolateId` from the matching `FlutterEngine`, then calls `ext.flutter.inspector.*` over WebSocket JSON-RPC.
