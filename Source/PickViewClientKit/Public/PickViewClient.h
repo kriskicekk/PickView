@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pickViewClient:(PickViewClient *)client didUpdateStatus:(NSString *)status;
 - (void)pickViewClient:(PickViewClient *)client didLogMessage:(NSString *)message;
 - (void)pickViewClient:(PickViewClient *)client didConnectEndpoint:(id<PVEndpointProtocol>)endpoint;
+- (void)pickViewClient:(PickViewClient *)client didFailToConnectEndpoint:(id<PVEndpointProtocol>)endpoint error:(NSError *)error;
 - (void)pickViewClient:(PickViewClient *)client didDisconnectEndpoint:(id<PVEndpointProtocol>)endpoint reason:(NSString *)reason;
 - (void)pickViewClient:(PickViewClient *)client didReceiveEcho:(NSString *)echo fromEndpoint:(id<PVEndpointProtocol>)endpoint;
 - (void)pickViewClientDidUpdateLANSessions:(PickViewClient *)client;

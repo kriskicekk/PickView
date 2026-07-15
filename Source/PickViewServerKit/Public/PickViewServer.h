@@ -12,9 +12,12 @@
 
 @class PickViewServer;
 @class PickViewServerConfiguration;
+@class PVPeerIdentity;
 @protocol PVRequestHandlerProtocol;
 
 NS_ASSUME_NONNULL_BEGIN
+
+typedef void (^PVServerConnectionDecisionHandler)(BOOL accepted);
 
 @protocol PickViewServerDelegate <NSObject>
 
@@ -22,6 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pickViewServer:(PickViewServer *)server didStartListeningOnPort:(int)port;
 - (void)pickViewServer:(PickViewServer *)server didFailToStartWithError:(NSError *)error;
 - (void)pickViewServer:(PickViewServer *)server didAcceptConnectionWithIdentifier:(NSString *)identifier;
+- (void)pickViewServer:(PickViewServer *)server
+    didReceiveConnectionRequestFromPeer:(PVPeerIdentity *)peerIdentity
+                        decisionHandler:(PVServerConnectionDecisionHandler)decisionHandler;
 - (void)pickViewServer:(PickViewServer *)server didReceiveMessage:(NSString *)message;
 
 @end

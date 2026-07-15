@@ -8,6 +8,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class PVClientSession;
+@class PVLANSessionCellModel;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -17,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^LANSelectionHandler)(NSInteger row);
 
 - (void)reloadWithPreviewSessions:(NSArray<PVClientSession *> *)previewSessions
-                       LANSessions:(NSArray<PVClientSession *> *)LANSessions
+                         LANModels:(NSArray<PVLANSessionCellModel *> *)LANModels
                      previewImages:(NSDictionary<NSString *, NSImage *> *)previewImages
     connectedLANEndpointIdentifier:(nullable NSString *)connectedLANEndpointIdentifier;
 

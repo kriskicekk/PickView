@@ -23,6 +23,8 @@
 static NSTimeInterval const PVClientSessionHeartbeatInterval = 3.0;
 static NSTimeInterval const PVClientSessionHeartbeatTimeout = 5.0;
 static NSUInteger const PVClientSessionMaxMissedHeartbeats = 3;
+static NSTimeInterval const PVClientSessionAuthorizationTimeout = 30.0;
+static NSTimeInterval const PVClientSessionLANOpenTimeout = 5.0;
 
 @interface PVClientSession ()
 @property (nonatomic, strong) id<PVConnectionProtocol> connection;
@@ -44,6 +46,10 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 3;
 - (uint32_t)nextHeartbeatSequence;
 - (NSData *)heartbeatPayloadWithSequence:(uint32_t)sequence;
 - (void)handleHeartbeatFailure:(NSError *)error;
+- (void)requestConnectionAuthorizationWithCompletion:(void (^)(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable error))completion;
+- (void)completeOpeningWithPeerIdentity:(nullable PVPeerIdentity *)peerIdentity
+                                  error:(nullable NSError *)error
+                             completion:(void (^)(NSError * _Nullable error))completion;
 @end
 
 @implementation PVClientSession
@@ -74,38 +80,172 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 3;
         });
         return;
     }
+    __block BOOL didCompleteOpening = NO;
+    void (^finishOpening)(NSError * _Nullable) = ^(NSError * _Nullable error) {
+        if (didCompleteOpening) {
+            return;
+        }
+        didCompleteOpening = YES;
+        if (completion) {
+            completion(error);
+        }
+    };
+
     self.state = PVClientSessionStateConnecting;
+    if ([self.endpoint isKindOfClass:PVLANEndpoint.class]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                     (int64_t)(PVClientSessionLANOpenTimeout * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            if (didCompleteOpening) {
+                return;
+            }
+            NSError *timeoutError = [NSError errorWithDomain:PVErrorDomain
+                                                        code:PVErrorCodeTimeout
+                                                    userInfo:@{NSLocalizedDescriptionKey: @"LAN 连接超时，未收到设备确认，请确认设备处于前台后重试。"}];
+            self.didNotifyClose = YES;
+            [self stopHeartbeat];
+            self.state = PVClientSessionStateFailed;
+            finishOpening(timeoutError);
+            [self finishPendingRequestsWithError:timeoutError];
+            [self.connection close];
+        });
+    }
+
     [self.connection connectWithCompletion:^(NSError *error) {
         if (!NSThread.isMainThread) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self handleConnectCompletionWithError:error completion:completion];
+                if (!didCompleteOpening) {
+                    [self handleConnectCompletionWithError:error completion:finishOpening];
+                }
             });
             return;
         }
-        [self handleConnectCompletionWithError:error completion:completion];
+        if (!didCompleteOpening) {
+            [self handleConnectCompletionWithError:error completion:finishOpening];
+        }
     }];
 }
 
 - (void)handleConnectCompletionWithError:(NSError *)error completion:(void (^)(NSError * _Nullable))completion {
+    if (error) {
+        self.didNotifyClose = YES;
+        self.state = PVClientSessionStateFailed;
+        if (completion) completion(error);
+        return;
+    }
+
+    if ([self.endpoint isKindOfClass:PVLANEndpoint.class]) {
+        self.state = PVClientSessionStateAwaitingAuthorization;
+        [self requestConnectionAuthorizationWithCompletion:^(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable authorizationError) {
+            [self completeOpeningWithPeerIdentity:peerIdentity
+                                            error:authorizationError
+                                       completion:completion];
+        }];
+        return;
+    }
+
+    self.state = PVClientSessionStateHandshaking;
+    [self validateVersionWithCompletion:^(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable validationError) {
+        [self completeOpeningWithPeerIdentity:peerIdentity
+                                        error:validationError
+                                   completion:completion];
+    }];
+}
+
+- (void)requestConnectionAuthorizationWithCompletion:(void (^)(PVPeerIdentity * _Nullable, NSError * _Nullable))completion {
+    PVPeerIdentity *identity = [PVPeerIdentity localIdentityWithProtocolVersion:PVClientProtocolVersion
+                                                        supportedPeerVersionMin:PVClientSupportedPeerVersionMin
+                                                        supportedPeerVersionMax:PVClientSupportedPeerVersionMax];
+    NSDictionary *request = @{ @"clientIdentity" : identity.dictionaryRepresentation };
+    NSError *serializationError = nil;
+    NSData *payload = [NSPropertyListSerialization dataWithPropertyList:request
+                                                                  format:NSPropertyListBinaryFormat_v1_0
+                                                                 options:0
+                                                                   error:&serializationError];
+    if (!payload) {
+        if (completion) completion(nil, serializationError);
+        return;
+    }
+
+    [self sendRequestType:PVRequestTypeConnectionAuthorization
+                   payload:payload
+           timeoutInterval:PVClientSessionAuthorizationTimeout
+                completion:^(NSData * _Nullable responsePayload, NSError * _Nullable error) {
         if (error) {
-            self.state = PVClientSessionStateFailed;
-            if (completion) completion(error);
+            if (completion) completion(nil, error);
             return;
         }
-        self.state = PVClientSessionStateHandshaking;
-        [self validateVersionWithCompletion:^(PVPeerIdentity * _Nullable peerIdentity, NSError * _Nullable error) {
-            if (error) {
-                [self stopHeartbeat];
-                [self.connection close];
-                self.state = PVClientSessionStateFailed;
-                if (completion) completion(error);
-                return;
-            }
-            self.peerIdentity = peerIdentity;
-            self.state = PVClientSessionStateReady;
-            [self startHeartbeatIfNeed];
-            if (completion) completion(nil);
-        }];
+
+        NSError *responseError = nil;
+        id object = responsePayload.length
+            ? [NSPropertyListSerialization propertyListWithData:responsePayload
+                                                        options:NSPropertyListImmutable
+                                                         format:nil
+                                                          error:&responseError]
+            : nil;
+        NSDictionary *response = [object isKindOfClass:NSDictionary.class] ? object : nil;
+        if (!response) {
+            NSError *invalidError = responseError ?: [NSError errorWithDomain:PVErrorDomain
+                                                                          code:PVErrorCodeUnknown
+                                                                      userInfo:@{NSLocalizedDescriptionKey: @"Invalid connection authorization response."}];
+            if (completion) completion(nil, invalidError);
+            return;
+        }
+
+        if (![response[@"accepted"] boolValue]) {
+            NSString *reason = [response[@"reason"] isKindOfClass:NSString.class]
+                ? response[@"reason"]
+                : @"The connection request was rejected by the device.";
+            NSError *rejectedError = [NSError errorWithDomain:PVErrorDomain
+                                                         code:PVErrorCodeConnectionRejected
+                                                     userInfo:@{NSLocalizedDescriptionKey: reason}];
+            if (completion) completion(nil, rejectedError);
+            return;
+        }
+
+        NSDictionary *identityDictionary = [response[@"peerIdentity"] isKindOfClass:NSDictionary.class]
+            ? response[@"peerIdentity"]
+            : nil;
+        PVPeerIdentity *peerIdentity = identityDictionary
+            ? [[PVPeerIdentity alloc] initWithDictionary:identityDictionary]
+            : nil;
+        NSError *validationError = nil;
+        if (!peerIdentity || ![self validatePeerIdentity:peerIdentity error:&validationError]) {
+            if (completion) completion(nil, validationError ?: [NSError errorWithDomain:PVErrorDomain
+                                                                 code:PVErrorCodeIncompatibleVersion
+                                                             userInfo:@{NSLocalizedDescriptionKey: @"The device did not provide a valid peer identity."}]);
+            return;
+        }
+
+        if (completion) completion(peerIdentity, nil);
+    }];
+}
+
+- (void)completeOpeningWithPeerIdentity:(PVPeerIdentity *)peerIdentity
+                                  error:(NSError *)error
+                             completion:(void (^)(NSError * _Nullable))completion {
+    if (error || !peerIdentity) {
+        NSError *finalError = error ?: [NSError errorWithDomain:PVErrorDomain
+                                                           code:PVErrorCodeUnknown
+                                                       userInfo:@{NSLocalizedDescriptionKey: @"The peer identity is unavailable."}];
+        // The authorization request is still executing its completion block here.
+        // Mark the opening attempt closed immediately, then release the transport
+        // on the next main-queue turn after that pending request has been removed.
+        self.didNotifyClose = YES;
+        [self stopHeartbeat];
+        self.state = PVClientSessionStateFailed;
+        if (completion) completion(finalError);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self finishPendingRequestsWithError:finalError];
+            [self.connection close];
+        });
+        return;
+    }
+
+    self.peerIdentity = peerIdentity;
+    self.state = PVClientSessionStateReady;
+    [self startHeartbeatIfNeed];
+    if (completion) completion(nil);
 }
 
 - (void)validateVersionWithCompletion:(void (^)(PVPeerIdentity * _Nullable, NSError * _Nullable))completion {
@@ -156,7 +296,9 @@ static NSUInteger const PVClientSessionMaxMissedHeartbeats = 3;
         });
         return;
     }
-    if (self.state != PVClientSessionStateReady && self.state != PVClientSessionStateHandshaking) {
+    if (self.state != PVClientSessionStateReady &&
+        self.state != PVClientSessionStateHandshaking &&
+        self.state != PVClientSessionStateAwaitingAuthorization) {
         if (completion) {
             NSError *error = [NSError errorWithDomain:PVErrorDomain code:PVErrorCodeDisconnected userInfo:@{NSLocalizedDescriptionKey: @"Client session is not ready."}];
             completion(nil, error);

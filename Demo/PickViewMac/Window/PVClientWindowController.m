@@ -11,6 +11,7 @@
 
 #import "PickViewClientKit.h"
 #import "PVLANEndpoint.h"
+#import "PVLANSessionCellModel.h"
 #import "PVHierarchyRowView.h"
 #import "PVLaunchWindowController.h"
 #import "PVToolbarScaleView.h"
@@ -55,7 +56,8 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSTextField *> *inspectorValueLabels;
 @property (nonatomic, copy) NSArray<PVClientSession *> *deviceSessions;
 @property (nonatomic, copy) NSArray<PVClientSession *> *previewDeviceSessions;
-@property (nonatomic, copy) NSArray<PVClientSession *> *LANDeviceSessions;
+@property (nonatomic, copy) NSArray<id<PVEndpointProtocol>> *LANDeviceEndpoints;
+@property (nonatomic, copy) NSArray<PVLANSessionCellModel *> *LANDeviceModels;
 @property (nonatomic, copy) NSArray<PVWindowInfo *> *windowInfos;
 @property (nonatomic, strong, nullable) PVHierarchyInfo *currentHierarchy;
 @property (nonatomic, strong, nullable) PVDisplayItem *selectedDisplayItem;
@@ -63,6 +65,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSImage *> *devicePreviewImagesByEndpointID;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PVDetailInspectableApp *> *inspectableAppsByEndpointID;
 @property (nonatomic, copy, nullable) NSString *connectedLANEndpointIdentifier;
+@property (nonatomic, copy, nullable) NSString *pendingLANEndpointIdentifier;
 @property (nonatomic, copy, nullable) NSString *inspectedEndpointIdentifier;
 @property (nonatomic, assign) BOOL isEnteringSession;
 @property (nonatomic, assign) NSUInteger launchPreviewRequestID;
@@ -78,7 +81,8 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     if (self) {
         _deviceSessions = @[];
         _previewDeviceSessions = @[];
-        _LANDeviceSessions = @[];
+        _LANDeviceEndpoints = @[];
+        _LANDeviceModels = @[];
         _windowInfos = @[];
         _inspectorValueLabels = [NSMutableDictionary dictionary];
         _displayItemDetailsByID = [NSMutableDictionary dictionary];
@@ -493,7 +497,19 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 
 - (void)reloadDeviceSessionsWithClient:(PickViewClient *)client {
     self.deviceSessions = client.sessionManager.allSessions;
-    self.LANDeviceSessions = client.sessionManager.lanSessions;
+    self.LANDeviceEndpoints = client.sessionManager.lanEndpoints;
+    NSMutableArray<PVLANSessionCellModel *> *LANModels = [NSMutableArray array];
+    for (id<PVEndpointProtocol> endpoint in self.LANDeviceEndpoints) {
+        PVClientSession *session = [client.sessionManager sessionForEndpointIdentifier:endpoint.identifier];
+        BOOL connecting = [client.sessionManager isEndpointConnectingWithIdentifier:endpoint.identifier];
+        PVLANSessionCellModel *model = [[PVLANSessionCellModel alloc]
+            initWithEndpoint:endpoint
+                     session:session
+                  connecting:connecting
+            connectedEndpointIdentifier:self.connectedLANEndpointIdentifier];
+        [LANModels addObject:model];
+    }
+    self.LANDeviceModels = LANModels.copy;
     self.previewDeviceSessions = [self.deviceSessions pv_inspect_filter:^BOOL(PVClientSession *session) {
         if (![session.endpoint isKindOfClass:PVLANEndpoint.class]) {
             return YES;
@@ -512,7 +528,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
         [self updateToolbarAppWithEndpointIdentifier:self.toolbarEndpointIdentifier];
     }
     [self.launchWindowController reloadWithPreviewSessions:self.previewDeviceSessions
-                                               LANSessions:self.LANDeviceSessions
+                                                 LANModels:self.LANDeviceModels
                                              previewImages:self.devicePreviewImagesByEndpointID.copy
                             connectedLANEndpointIdentifier:self.connectedLANEndpointIdentifier];
     [self refreshLaunchPreviewImagesIfNeeded];
@@ -561,7 +577,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 
         if (didUpdate) {
             [self.launchWindowController reloadWithPreviewSessions:self.previewDeviceSessions
-                                                       LANSessions:self.LANDeviceSessions
+                                                         LANModels:self.LANDeviceModels
                                                      previewImages:self.devicePreviewImagesByEndpointID.copy
                                     connectedLANEndpointIdentifier:self.connectedLANEndpointIdentifier];
         }
@@ -632,24 +648,29 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 }
 
 - (void)openLANDeviceAtRow:(NSInteger)row {
-    if (self.isEnteringSession || row < 0 || row >= (NSInteger)self.LANDeviceSessions.count) {
+    if (self.isEnteringSession || row < 0 || row >= (NSInteger)self.LANDeviceEndpoints.count) {
         return;
     }
-    PVClientSession *session = self.LANDeviceSessions[(NSUInteger)row];
-    if (session.state == PVClientSessionStateBlocked) {
-        [self showMessage:@"This app is already connected through USB."];
+    if (self.pendingLANEndpointIdentifier.length) {
+        [self showMessage:@"已有 LAN 设备正在等待对方确认。"];
         return;
     }
-    if (session.state != PVClientSessionStateReady) {
-        [self showMessage:@"This LAN device is not available."];
+    id<PVEndpointProtocol> endpoint = self.LANDeviceEndpoints[(NSUInteger)row];
+    if ([PickViewClient.sharedClient.sessionManager isEndpointConnectingWithIdentifier:endpoint.identifier]) {
         return;
     }
 
-    self.connectedLANEndpointIdentifier = session.identifier;
-    [PickViewClient.sharedClient connectToLANEndpointIdentifier:session.identifier];
+    PVClientSession *session = [PickViewClient.sharedClient.sessionManager sessionForEndpointIdentifier:endpoint.identifier];
+    if (session.state == PVClientSessionStateReady) {
+        self.connectedLANEndpointIdentifier = endpoint.identifier;
+        self.isEnteringSession = YES;
+        [self enterDetailWithSession:session];
+        return;
+    }
+
+    self.pendingLANEndpointIdentifier = endpoint.identifier;
+    [PickViewClient.sharedClient connectToLANEndpointIdentifier:endpoint.identifier];
     [self reloadDeviceSessionsWithClient:PickViewClient.sharedClient];
-    self.isEnteringSession = YES;
-    [self enterDetailWithSession:session];
 }
 
 - (void)enterDetailWithSession:(PVClientSession *)session {
@@ -712,6 +733,11 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 }
 
 - (void)reloadLANStateWithClient:(PickViewClient *)client {
+    if (self.pendingLANEndpointIdentifier.length &&
+        ![client.sessionManager isEndpointConnectingWithIdentifier:self.pendingLANEndpointIdentifier] &&
+        ![client.sessionManager endpointForIdentifier:self.pendingLANEndpointIdentifier]) {
+        self.pendingLANEndpointIdentifier = nil;
+    }
     BOOL stillHasConnectedEndpoint = NO;
     for (PVClientSession *session in client.sessionManager.lanSessions) {
         if (session.state == PVClientSessionStateReady &&
@@ -1045,19 +1071,44 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 }
 
 - (void)pickViewClient:(PickViewClient *)client didConnectEndpoint:(id<PVEndpointProtocol>)endpoint {
-    BOOL isUnconfirmedLAN = [endpoint isKindOfClass:PVLANEndpoint.class] &&
-                            ![endpoint.identifier isEqualToString:self.connectedLANEndpointIdentifier];
-    self.statusLabel.stringValue = isUnconfirmedLAN
-        ? [NSString stringWithFormat:@"LAN device ready: %@", endpoint.displayName]
-        : [NSString stringWithFormat:@"Connected: %@", endpoint.displayName];
-    [self reloadDeviceSessionsWithClient:client];
-    if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
-        [self updateLANConnectionControls];
-        [self reloadLANStateWithClient:client];
+    BOOL isLAN = [endpoint isKindOfClass:PVLANEndpoint.class];
+    BOOL completesPendingLANConnection = isLAN &&
+        [endpoint.identifier isEqualToString:self.pendingLANEndpointIdentifier];
+    if (completesPendingLANConnection) {
+        self.pendingLANEndpointIdentifier = nil;
+        self.connectedLANEndpointIdentifier = endpoint.identifier;
+    }
+    self.statusLabel.stringValue = [NSString stringWithFormat:@"Connected: %@", endpoint.displayName];
+    [self reloadLANStateWithClient:client];
+
+    if (!completesPendingLANConnection) {
+        return;
+    }
+    PVClientSession *session = [client.sessionManager sessionForEndpointIdentifier:endpoint.identifier];
+    if (session.state == PVClientSessionStateReady) {
+        self.isEnteringSession = YES;
+        [self enterDetailWithSession:session];
     }
 }
 
+- (void)pickViewClient:(PickViewClient *)client
+    didFailToConnectEndpoint:(id<PVEndpointProtocol>)endpoint
+                       error:(NSError *)error {
+    if ([endpoint.identifier isEqualToString:self.pendingLANEndpointIdentifier]) {
+        self.pendingLANEndpointIdentifier = nil;
+    }
+    self.isEnteringSession = NO;
+    self.statusLabel.stringValue = error.localizedDescription.length
+        ? error.localizedDescription
+        : [NSString stringWithFormat:@"Connection failed: %@", endpoint.displayName];
+    [self reloadLANStateWithClient:client];
+    [self showMessage:self.statusLabel.stringValue];
+}
+
 - (void)pickViewClient:(PickViewClient *)client didDisconnectEndpoint:(id<PVEndpointProtocol>)endpoint reason:(NSString *)reason {
+    if ([endpoint.identifier isEqualToString:self.pendingLANEndpointIdentifier]) {
+        self.pendingLANEndpointIdentifier = nil;
+    }
     if ([endpoint.identifier isEqualToString:self.connectedLANEndpointIdentifier]) {
         self.connectedLANEndpointIdentifier = nil;
     }
@@ -1069,9 +1120,7 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
     [self.devicePreviewImagesByEndpointID removeObjectForKey:endpoint.identifier ?: @""];
     self.statusLabel.stringValue = reason.length ? reason : [NSString stringWithFormat:@"Disconnected: %@", endpoint.displayName];
     [self appendLog:self.statusLabel.stringValue];
-    [self updateLANConnectionControls];
     [self reloadLANStateWithClient:client];
-    [self reloadDeviceSessionsWithClient:client];
 }
 
 - (void)pickViewClient:(PickViewClient *)client didReceiveEcho:(NSString *)echo fromEndpoint:(id<PVEndpointProtocol>)endpoint {
@@ -1080,7 +1129,6 @@ static NSToolbarItemIdentifier const PVToolbarItemIdentifierLAN = @"PVToolbarIte
 
 - (void)pickViewClientDidUpdateLANSessions:(PickViewClient *)client {
     [self reloadLANStateWithClient:client];
-    [self reloadDeviceSessionsWithClient:client];
 }
 
 - (void)pickViewClient:(PickViewClient *)client didReceiveWindowInfos:(NSArray<PVWindowInfo *> *)windowInfos endpointIdentifier:(NSString *)endpointIdentifier {

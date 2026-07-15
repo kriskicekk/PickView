@@ -35,51 +35,6 @@
 #import <AppKit/AppKit.h>
 #endif
 
-static NSUInteger const PVLANBonjourServiceNameMaxBytes = 63;
-
-static NSString *PVStringByTrimmingToUTF8ByteLength(NSString *string, NSUInteger maxBytes) {
-    if ([string lengthOfBytesUsingEncoding:NSUTF8StringEncoding] <= maxBytes) {
-        return string;
-    }
-
-    NSMutableString *result = [NSMutableString string];
-    __block NSUInteger usedBytes = 0;
-    [string enumerateSubstringsInRange:NSMakeRange(0, string.length)
-                               options:NSStringEnumerationByComposedCharacterSequences
-                            usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
-        NSUInteger substringBytes = [substring lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-        if (usedBytes + substringBytes > maxBytes) {
-            *stop = YES;
-            return;
-        }
-
-        [result appendString:substring];
-        usedBytes += substringBytes;
-    }];
-    return result.copy;
-}
-
-static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
-    NSString *name = baseName.length ? baseName : @"PickView";
-    PVPeerIdentity *identity = [PVPeerIdentity localIdentityWithProtocolVersion:PVServerProtocolVersion
-                                                        supportedPeerVersionMin:PVServerSupportedPeerVersionMin
-                                                        supportedPeerVersionMax:PVServerSupportedPeerVersionMax];
-    NSString *peerID = identity.uuid;
-    if (!peerID.length || [name containsString:peerID]) {
-        return name;
-    }
-
-    NSString *suffix = [NSString stringWithFormat:@"-%@", peerID];
-    NSUInteger suffixBytes = [suffix lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-    if (suffixBytes >= PVLANBonjourServiceNameMaxBytes) {
-        return PVStringByTrimmingToUTF8ByteLength(peerID, PVLANBonjourServiceNameMaxBytes);
-    }
-
-    NSUInteger maxBaseBytes = PVLANBonjourServiceNameMaxBytes - suffixBytes;
-    NSString *trimmedName = PVStringByTrimmingToUTF8ByteLength(name, maxBaseBytes);
-    return [trimmedName stringByAppendingString:suffix];
-}
-
 @interface PickViewServer () <PVListenerDelegate, PVServerSessionDelegate>
 @property (nonatomic, strong) PickViewServerConfiguration *configuration;
 @property (nonatomic, strong, nullable) PVLoopbackListener *loopbackListener;
@@ -160,8 +115,16 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
     
 #if TARGET_OS_IPHONE
     if ([self shouldStartLANTransport]) {
-        NSString *lanServiceName = PVLANServiceNameWithPeerID(self.configuration.lanServiceName);
-        self.lanListener = [[PVLANListener alloc] initWithServiceName:lanServiceName];
+        NSString *lanServiceName = self.configuration.lanServiceName.length
+            ? self.configuration.lanServiceName
+            : @"PickView";
+        UIDevice *device = UIDevice.currentDevice;
+        NSString *systemVersion = [NSString stringWithFormat:@"iOS %@",
+                                   device.systemVersion ?: @""];
+        self.lanListener = [[PVLANListener alloc]
+            initWithServiceName:lanServiceName
+                     deviceName:device.name
+                  systemVersion:systemVersion];
         self.lanListener.delegate = self;
         [self startListener:self.lanListener];
     }
@@ -291,7 +254,18 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
 #pragma mark - PVListenerDelegate
 
 - (void)listener:(id<PVListenerProtocol>)listener didAcceptConnection:(id<PVConnectionProtocol>)connection {
-    PVServerSession *session = [[PVServerSession alloc] initWithConnection:connection requestHandler:[self makeRequestHandler]];
+    BOOL requiresAuthorization = [listener isKindOfClass:PVLANListener.class];
+    __weak typeof(self) weakSelf = self;
+    PVServerSession *session = [[PVServerSession alloc]
+        initWithConnection:connection
+             requestHandler:[self makeRequestHandler]
+      requiresAuthorization:requiresAuthorization
+       authorizationHandler:requiresAuthorization
+            ? ^(PVPeerIdentity *peerIdentity, PVServerSessionAuthorizationDecision decision) {
+                __strong typeof(weakSelf) self = weakSelf;
+                [self requestConnectionAuthorizationForPeer:peerIdentity decision:decision];
+            }
+            : nil];
     session.delegate = self;
     [self.sessions addObject:session];
     self.sessionsDict[connection.connectionIdentifier] = session;
@@ -299,6 +273,78 @@ static NSString *PVLANServiceNameWithPeerID(NSString *baseName) {
     NSLog(@"[PickView Server]:%@ did accept connection %@", [listener.class description], connection.connectionIdentifier);
     [self notifyAcceptedConnection:connection];
 }
+
+- (void)requestConnectionAuthorizationForPeer:(PVPeerIdentity *)peerIdentity
+                                      decision:(PVServerSessionAuthorizationDecision)decision {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self.delegate respondsToSelector:@selector(pickViewServer:didReceiveConnectionRequestFromPeer:decisionHandler:)]) {
+            [self.delegate pickViewServer:self
+              didReceiveConnectionRequestFromPeer:peerIdentity
+                                  decisionHandler:decision];
+            return;
+        }
+
+#if TARGET_OS_IPHONE
+        UIViewController *presenter = [self activePresenterViewController];
+        if (!presenter) {
+            decision(NO);
+            return;
+        }
+        NSString *peerName = peerIdentity.deviceName.length
+            ? peerIdentity.deviceName
+            : (peerIdentity.appName.length ? peerIdentity.appName : @"PickView Client");
+        NSString *message = [NSString stringWithFormat:@"%@ 请求连接并检查当前 App。", peerName];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"PickView 连接请求"
+                                                                        message:message
+                                                                 preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"拒绝"
+                                                  style:UIAlertActionStyleCancel
+                                                handler:^(__unused UIAlertAction *action) {
+            decision(NO);
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"允许"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            decision(YES);
+        }]];
+        [presenter presentViewController:alert animated:YES completion:nil];
+#else
+        decision(NO);
+#endif
+    });
+}
+
+#if TARGET_OS_IPHONE
+- (UIViewController *)activePresenterViewController {
+    UIWindow *keyWindow = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class] ||
+            scene.activationState != UISceneActivationStateForegroundActive) {
+            continue;
+        }
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            if (window.isKeyWindow) {
+                keyWindow = window;
+                break;
+            }
+        }
+        if (keyWindow) {
+            break;
+        }
+    }
+    UIViewController *viewController = keyWindow.rootViewController;
+    while (viewController.presentedViewController) {
+        viewController = viewController.presentedViewController;
+    }
+    if ([viewController isKindOfClass:UINavigationController.class]) {
+        viewController = ((UINavigationController *)viewController).visibleViewController;
+    }
+    if ([viewController isKindOfClass:UITabBarController.class]) {
+        viewController = ((UITabBarController *)viewController).selectedViewController;
+    }
+    return viewController;
+}
+#endif
 
 - (void)listener:(id<PVListenerProtocol>)listener closeConnection:(id<PVConnectionProtocol>)connection {
     PVServerSession *session = self.sessionsDict[connection.connectionIdentifier];

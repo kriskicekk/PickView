@@ -45,7 +45,7 @@ typedef NS_ENUM(NSInteger, PVLaunchDeviceMode) {
 @property (nonatomic, strong) NSTextField *LANEmptyLabel;
 @property (nonatomic, strong) NSTextField *helpLabel;
 @property (nonatomic, copy) NSArray<PVClientSession *> *previewSessions;
-@property (nonatomic, copy) NSArray<PVClientSession *> *LANSessions;
+@property (nonatomic, copy) NSArray<PVLANSessionCellModel *> *LANModels;
 @property (nonatomic, copy) NSDictionary<NSString *, NSImage *> *previewImages;
 @property (nonatomic, copy) NSString *connectedLANEndpointIdentifier;
 
@@ -71,7 +71,7 @@ typedef NS_ENUM(NSInteger, PVLaunchDeviceMode) {
     self = [super initWithWindow:window];
     if (self) {
         _previewSessions = @[];
-        _LANSessions = @[];
+        _LANModels = @[];
         _previewImages = @{};
         [self buildContentView];
     }
@@ -177,11 +177,11 @@ typedef NS_ENUM(NSInteger, PVLaunchDeviceMode) {
 }
 
 - (void)reloadWithPreviewSessions:(NSArray<PVClientSession *> *)previewSessions
-                       LANSessions:(NSArray<PVClientSession *> *)LANSessions
+                         LANModels:(NSArray<PVLANSessionCellModel *> *)LANModels
                      previewImages:(NSDictionary<NSString *,NSImage *> *)previewImages
     connectedLANEndpointIdentifier:(NSString *)connectedLANEndpointIdentifier {
     self.previewSessions = previewSessions ?: @[];
-    self.LANSessions = LANSessions ?: @[];
+    self.LANModels = LANModels ?: @[];
     self.previewImages = previewImages ?: @{};
     self.connectedLANEndpointIdentifier = connectedLANEndpointIdentifier;
     [self reloadContent];
@@ -220,9 +220,7 @@ typedef NS_ENUM(NSInteger, PVLaunchDeviceMode) {
 
 - (void)reloadLANDevices {
     [self removeArrangedSubviewsFromStackView:self.LANStackView];
-    [self.LANSessions enumerateObjectsUsingBlock:^(PVClientSession *session, NSUInteger idx, BOOL *stop) {
-        PVLANSessionCellModel *model = [[PVLANSessionCellModel alloc] initWithSession:session
-                                                       connectedEndpointIdentifier:self.connectedLANEndpointIdentifier];
+    [self.LANModels enumerateObjectsUsingBlock:^(PVLANSessionCellModel *model, NSUInteger idx, BOOL *stop) {
         PVLaunchLANDeviceCellView *cell = [[PVLaunchLANDeviceCellView alloc] initWithFrame:NSZeroRect];
         [cell configureWithModel:model row:(NSInteger)idx target:self action:@selector(selectLANDeviceButton:)];
         [self.LANStackView addArrangedSubview:cell];
@@ -243,7 +241,7 @@ typedef NS_ENUM(NSInteger, PVLaunchDeviceMode) {
 - (void)updateModeVisibility {
     BOOL showsPreview = self.modeControl.selectedSegment == PVLaunchDeviceModePreview;
     BOOL hasPreviewDevices = self.previewSessions.count > 0;
-    BOOL hasLANDevices = self.LANSessions.count > 0;
+    BOOL hasLANDevices = self.LANModels.count > 0;
 
     self.deviceStackView.hidden = !showsPreview || !hasPreviewDevices;
     self.indicator.hidden = !showsPreview || hasPreviewDevices;

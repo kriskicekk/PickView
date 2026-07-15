@@ -8,9 +8,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, nullable) id<PVListenerDelegate> delegate;
 @property (nonatomic, assign, readonly) int listeningPort;
 @property (nonatomic, copy, readonly) NSString *serviceName;
+@property (nonatomic, copy, readonly, nullable) NSString *deviceName;
+@property (nonatomic, copy, readonly, nullable) NSString *systemVersion;
 @property (nonatomic, readonly) NSString *listeningInfo;
 
 - (instancetype)initWithServiceName:(NSString *)serviceName;
+- (instancetype)initWithServiceName:(NSString *)serviceName
+                          deviceName:(nullable NSString *)deviceName
+                       systemVersion:(nullable NSString *)systemVersion NS_DESIGNATED_INITIALIZER;
 - (instancetype)init;
 
 @end

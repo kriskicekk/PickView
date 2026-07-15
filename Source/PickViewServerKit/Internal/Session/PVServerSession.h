@@ -11,10 +11,16 @@
 #import "PVConnectionDelegate.h"
 
 @class PVServerSession;
+@class PVPeerIdentity;
 @protocol PVConnectionProtocol;
 @protocol PVRequestHandlerProtocol;
 
 NS_ASSUME_NONNULL_BEGIN
+
+typedef void (^PVServerSessionAuthorizationDecision)(BOOL accepted);
+typedef void (^PVServerSessionAuthorizationHandler)(
+    PVPeerIdentity *peerIdentity,
+    PVServerSessionAuthorizationDecision decision);
 
 @protocol PVServerSessionDelegate <NSObject>
 
@@ -29,7 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly) id<PVConnectionProtocol> connection;
 @property (nonatomic, strong, readonly) id<PVRequestHandlerProtocol> requestHandler;
 
-- (instancetype)initWithConnection:(id<PVConnectionProtocol>)connection requestHandler:(id<PVRequestHandlerProtocol>)requestHandler;
+- (instancetype)initWithConnection:(id<PVConnectionProtocol>)connection
+                     requestHandler:(id<PVRequestHandlerProtocol>)requestHandler
+              requiresAuthorization:(BOOL)requiresAuthorization
+               authorizationHandler:(nullable PVServerSessionAuthorizationHandler)authorizationHandler;
 - (void)start;
 - (void)close;
 

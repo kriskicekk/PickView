@@ -51,8 +51,26 @@
     return self.endpointsByID.allValues;
 }
 
+- (NSArray<id<PVEndpointProtocol>> *)lanEndpoints {
+    NSMutableDictionary<NSString *, id<PVEndpointProtocol>> *endpoints = [NSMutableDictionary dictionary];
+    for (id<PVEndpointProtocol> endpoint in self.endpointsByID.allValues) {
+        if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+            endpoints[endpoint.identifier] = endpoint;
+        }
+    }
+    for (PVClientSession *session in self.lanSessions) {
+        if (session.endpoint.identifier.length) {
+            endpoints[session.endpoint.identifier] = session.endpoint;
+        }
+    }
+    return [endpoints.allValues sortedArrayUsingComparator:^NSComparisonResult(id<PVEndpointProtocol> left,
+                                                                                id<PVEndpointProtocol> right) {
+        return [left.displayName localizedCaseInsensitiveCompare:right.displayName];
+    }];
+}
+
 - (void)addSession:(PVClientSession *)session {
-    if (!session || [self.sessions containsObject:session] || !session.identifier || !self.endpointsByID[session.identifier]) return;
+    if (!session || [self.sessions containsObject:session] || !session.identifier.length) return;
 
     [self.sessions addObject:session];
     [self notifySessionsChanged];

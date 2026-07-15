@@ -22,6 +22,7 @@ typedef NS_ENUM(NSUInteger, PVClientSessionState) {
     PVClientSessionStateIdle,
     PVClientSessionStateConnecting,
     PVClientSessionStateHandshaking,
+    PVClientSessionStateAwaitingAuthorization,
     PVClientSessionStateReady,
     PVClientSessionStateBlocked,
     PVClientSessionStateDisconnected,

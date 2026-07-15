@@ -6,6 +6,8 @@
 #import <Network/Network.h>
 
 static NSError *PVLANBrowserErrorFromNWError(nw_error_t error);
+static NSString *PVLANTXTValueFromBrowseResult(nw_browse_result_t result,
+                                                const char *key);
 static NSTimeInterval const PVLANEndpointRemovalGraceInterval = 1.0;
 
 static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
@@ -17,6 +19,31 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
         return CFBridgingRelease(cfError);
     }
     return [NSError errorWithDomain:NSPOSIXErrorDomain code:EINVAL userInfo:@{NSLocalizedDescriptionKey: @"Network.framework browser error."}];
+}
+
+static NSString *PVLANTXTValueFromBrowseResult(nw_browse_result_t result,
+                                                const char *key) {
+    nw_txt_record_t TXTRecord = nw_browse_result_copy_txt_record_object(result);
+    if (!TXTRecord) {
+        return nil;
+    }
+
+    __block NSString *TXTValue = nil;
+    nw_txt_record_access_key(TXTRecord,
+                             key,
+                             ^bool(const char *recordKey,
+                                   nw_txt_record_find_key_t found,
+                                   const uint8_t *value,
+                                   size_t valueLength) {
+        if (found == nw_txt_record_find_key_non_empty_value && value &&
+            valueLength > 0) {
+            NSData *data = [NSData dataWithBytes:value length:valueLength];
+            TXTValue = [[NSString alloc] initWithData:data
+                                              encoding:NSUTF8StringEncoding];
+        }
+        return true;
+    });
+    return TXTValue;
 }
 
 @interface PVLANEndpointDiscoverer ()
@@ -44,6 +71,7 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
     }
 
     nw_browse_descriptor_t descriptor = nw_browse_descriptor_create_bonjour_service(PVLANBonjourServiceType, NULL);
+    nw_browse_descriptor_set_include_txt_record(descriptor, true);
     nw_parameters_t parameters = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, NW_PARAMETERS_DEFAULT_CONFIGURATION);
 //    nw_parameters_set_include_peer_to_peer(parameters, false);
 
@@ -111,7 +139,14 @@ static NSError *PVLANBrowserErrorFromNWError(nw_error_t error) {
 
 - (void)addOrUpdateEndpointForBrowseResult:(nw_browse_result_t)result {
     nw_endpoint_t networkEndpoint = nw_browse_result_copy_endpoint(result);
-    PVLANEndpoint *endpoint = [[PVLANEndpoint alloc] initWithNetworkEndpoint:networkEndpoint];
+    NSString *deviceName = PVLANTXTValueFromBrowseResult(
+        result, PVLANBonjourTXTKeyDeviceName);
+    NSString *systemVersion = PVLANTXTValueFromBrowseResult(
+        result, PVLANBonjourTXTKeySystemVersion);
+    PVLANEndpoint *endpoint = [[PVLANEndpoint alloc]
+        initWithNetworkEndpoint:networkEndpoint
+                     deviceName:deviceName
+                 systemVersion:systemVersion];
 
     @synchronized (self.endpointsByID) {
         [self.pendingRemovalTokensByID removeObjectForKey:endpoint.identifier];

@@ -7,19 +7,16 @@
 
 #import "PVLANSessionCellModel.h"
 
-#import "PVConnectionProtocol.h"
-#import "PVPeerIdentity.h"
+#import "PVEndpointProtocol.h"
+#import "PVLANEndpoint.h"
 
 @interface PVLANSessionCellModel ()
 
-@property (nonatomic, strong) PVClientSession *session;
+@property (nonatomic, strong) id<PVEndpointProtocol> endpoint;
+@property (nonatomic, strong, nullable) PVClientSession *session;
 @property (nonatomic, copy) NSString *endpointIdentifier;
-@property (nonatomic, copy) NSString *deviceNameText;
-@property (nonatomic, copy) NSString *appNameText;
-@property (nonatomic, copy) NSString *bundleIDText;
-@property (nonatomic, copy) NSString *peerIDText;
-@property (nonatomic, copy) NSString *protocolVersionText;
-@property (nonatomic, copy) NSString *statusText;
+@property (nonatomic, copy) NSString *LANNameText;
+@property (nonatomic, copy) NSString *deviceInfoText;
 @property (nonatomic, copy) NSString *buttonTitle;
 @property (nonatomic, assign) BOOL buttonEnabled;
 
@@ -27,78 +24,48 @@
 
 @implementation PVLANSessionCellModel
 
-- (instancetype)initWithSession:(PVClientSession *)session
+- (instancetype)initWithEndpoint:(id<PVEndpointProtocol>)endpoint
+                          session:(PVClientSession *)session
+                       connecting:(BOOL)connecting
     connectedEndpointIdentifier:(NSString *)connectedEndpointIdentifier {
     self = [super init];
     if (self) {
+        _endpoint = endpoint;
         _session = session;
-        _endpointIdentifier = session.connection.connectionIdentifier ?: @"";
-        _deviceNameText = [self.class displayTextWithValue:session.peerIdentity.deviceName placeholder:@"Checking"];
-        _appNameText = [self.class displayTextWithValue:session.peerIdentity.appName placeholder:@""];
-        _bundleIDText = [self.class displayTextWithValue:session.peerIdentity.bundleID placeholder:@""];
-        _peerIDText = [self.class displayTextWithValue:session.peerIdentity.uuid placeholder:@""];
-        _protocolVersionText = [self.class displayTextWithValue:session.peerIdentity.protocolVersion placeholder:@""];
+        _endpointIdentifier = endpoint.identifier ?: @"";
+        _LANNameText = endpoint.displayName.length ? endpoint.displayName : @"Device";
+        if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+            PVLANEndpoint *LANEndpoint = (PVLANEndpoint *)endpoint;
+            if (LANEndpoint.deviceName.length &&
+                LANEndpoint.systemVersion.length) {
+                _deviceInfoText = [NSString stringWithFormat:@"%@ %@",
+                    LANEndpoint.deviceName,
+                    LANEndpoint.systemVersion];
+            } else {
+                _deviceInfoText = LANEndpoint.deviceName.length
+                    ? LANEndpoint.deviceName
+                    : LANEndpoint.systemVersion ?: @"";
+            }
+        } else {
+            _deviceInfoText = @"";
+        }
 
         BOOL isConnected = [_endpointIdentifier isEqualToString:connectedEndpointIdentifier ?: @""];
-        _statusText = [self.class statusTextWithSessionState:session.state isConnected:isConnected];
-        _buttonTitle = [self.class buttonTitleWithSessionState:session.state isConnected:isConnected];
-        _buttonEnabled = [self.class buttonEnabledWithSessionState:session.state isConnected:isConnected];
+        if (isConnected && session.state == PVClientSessionStateReady) {
+            _buttonTitle = @"Open";
+            _buttonEnabled = YES;
+        } else if (connecting) {
+            _buttonTitle = @"Connecting";
+            _buttonEnabled = NO;
+        } else if (session.state == PVClientSessionStateReady) {
+            _buttonTitle = @"Open";
+            _buttonEnabled = YES;
+        } else {
+            _buttonTitle = @"Connect";
+            _buttonEnabled = YES;
+        }
     }
     return self;
-}
-
-+ (NSString *)displayTextWithValue:(NSString *)value placeholder:(NSString *)placeholder {
-    return value.length ? value : placeholder;
-}
-
-+ (NSString *)statusTextWithSessionState:(PVClientSessionState)state isConnected:(BOOL)isConnected {
-    if (state == PVClientSessionStateBlocked) {
-        return @"USB Connected";
-    }
-    if (isConnected) {
-        return @"Connected";
-    }
-
-    switch (state) {
-        case PVClientSessionStateIdle:
-        case PVClientSessionStateConnecting:
-        case PVClientSessionStateHandshaking:
-            return @"Connecting";
-        case PVClientSessionStateReady:
-            return @"Ready";
-        case PVClientSessionStateBlocked:
-            return @"USB Connected";
-        case PVClientSessionStateDisconnected:
-        case PVClientSessionStateFailed:
-            return @"Unavailable";
-    }
-}
-
-+ (NSString *)buttonTitleWithSessionState:(PVClientSessionState)state isConnected:(BOOL)isConnected {
-    if (state == PVClientSessionStateBlocked) {
-        return @"USB Connected";
-    }
-    if (isConnected) {
-        return @"Open";
-    }
-
-    switch (state) {
-        case PVClientSessionStateIdle:
-        case PVClientSessionStateConnecting:
-        case PVClientSessionStateHandshaking:
-            return @"Connecting";
-        case PVClientSessionStateReady:
-            return @"Connect";
-        case PVClientSessionStateBlocked:
-            return @"USB Connected";
-        case PVClientSessionStateDisconnected:
-        case PVClientSessionStateFailed:
-            return @"Connect";
-    }
-}
-
-+ (BOOL)buttonEnabledWithSessionState:(PVClientSessionState)state isConnected:(BOOL)isConnected {
-    return state == PVClientSessionStateReady;
 }
 
 @end

@@ -31,6 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, readonly) NSArray<PVClientSession *> *lanSessions;
 @property (nonatomic, copy, readonly) NSArray<PVClientSession *> *usbSessions;
 @property (nonatomic, copy, readonly) NSArray<id<PVEndpointProtocol>> *allEndpoints;
+@property (nonatomic, copy, readonly) NSArray<id<PVEndpointProtocol>> *lanEndpoints;
 
 - (void)clear;
 

@@ -9,6 +9,7 @@
 #define PVRequestType_h
 
 typedef NS_ENUM(uint32_t, PVRequestType) {
+    PVRequestTypeConnectionAuthorization = 199,
     PVRequestTypePing = 200,
     PVRequestTypeAppInfo = 201,
     PVRequestTypeHierarchy = 202,

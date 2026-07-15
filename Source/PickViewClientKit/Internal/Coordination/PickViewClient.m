@@ -34,7 +34,6 @@
 #import "PVWindowInfo.h"
 
 static NSString * const PVClientLANBlockedByUSBMessage = @"当前 App 已经通过 USB 连接，请先断开 USB。";
-static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用，请重新扫描后再连接。";
 
 @interface PickViewClient () <PVEndpointDiscovererDelegate, PVClientSessionDelegate, PVClientSessionManagerDelegate>
 
@@ -114,32 +113,29 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
 - (void)scanNow {
     NSArray<id<PVEndpointProtocol>> *endpoints = self.sessionManager.allEndpoints;
     for (id<PVEndpointProtocol> endpoint in endpoints) {
+        if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+            continue;
+        }
         [self tryConnectEndpoint:endpoint];
     }
 }
 
 - (void)connectToLANEndpointIdentifier:(NSString *)endpointIdentifier {
     PVClientSession *session = [self.sessionManager sessionForEndpointIdentifier:endpointIdentifier];
-    if (![session.endpoint isKindOfClass:PVLANEndpoint.class]) {
-        [self notifyLog:[NSString stringWithFormat:@"LAN session not found: %@", endpointIdentifier ?: @""]];
-        return;
-    }
-    if (session.state == PVClientSessionStateBlocked) {
-        [self notifyStatus:PVClientLANBlockedByUSBMessage];
-        [self notifyLog:PVClientLANBlockedByUSBMessage];
-        [self notifyLANSessionsChanged];
-        return;
-    }
-    if (session.state != PVClientSessionStateReady) {
-        [self notifyStatus:PVClientLANUnavailableMessage];
-        [self notifyLog:PVClientLANUnavailableMessage];
-        [self notifyLANSessionsChanged];
+    if ([session.endpoint isKindOfClass:PVLANEndpoint.class] &&
+        session.state == PVClientSessionStateReady) {
+        [self notifyConnectedEndpoint:session.endpoint];
         return;
     }
 
-    [self notifyConnectedEndpoint:session.endpoint];
-    [self notifyLANSessionsChanged];
-    [self sendSmokeMessageWithSession:session endpoint:session.endpoint];
+    id<PVEndpointProtocol> endpoint = [self.sessionManager endpointForIdentifier:endpointIdentifier];
+    if (![endpoint isKindOfClass:PVLANEndpoint.class]) {
+        [self notifyLog:[NSString stringWithFormat:@"LAN endpoint not found: %@", endpointIdentifier ?: @""]];
+        [self notifyStatus:@"LAN 设备已离线，请重新扫描后再连接。"];
+        [self notifyLANSessionsChanged];
+        return;
+    }
+    [self tryConnectEndpoint:endpoint];
 }
 
 - (void)requestWindowListForEndpointIdentifier:(NSString *)endpointIdentifier {
@@ -281,10 +277,20 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
     if ([self.sessionManager isEndpointConnectingWithIdentifier:endpoint.identifier]) return;
     if ([self.sessionManager isEndpointConnectedWithIdentifier:endpoint.identifier]) return;
     [self.sessionManager markEndpointConnectingWithIdentifier:endpoint.identifier];
+    if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+        [self notifyLANSessionsChanged];
+    }
 
     id<PVConnectionProtocol> connection = [self connectionForEndpoint:endpoint];
     if (!connection) {
         [self.sessionManager removeConnectingEndpointWithIdentifier:endpoint.identifier];
+        if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+            NSError *error = [NSError errorWithDomain:PVErrorDomain
+                                                 code:PVErrorCodeUnsupportedEndpoint
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Unable to create a LAN connection."}];
+            [self notifyConnectionFailedForEndpoint:endpoint error:error];
+            [self notifyLANSessionsChanged];
+        }
         return;
     }
 
@@ -306,16 +312,35 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
 }
 
 - (void)handleOpenCompletionForSession:(PVClientSession *)session endpoint:(id<PVEndpointProtocol>)endpoint error:(NSError *)error {
-        [self.sessionManager removeConnectingEndpointWithIdentifier:endpoint.identifier];
-        if (error) {
-            [self notifyLog:[NSString stringWithFormat:@"connect %@ failed: %@", endpoint.displayName ?: endpoint.identifier, error.localizedDescription ?: @""]];
+    [self.sessionManager removeConnectingEndpointWithIdentifier:endpoint.identifier];
+    if (error) {
+        [self notifyLog:[NSString stringWithFormat:@"connect %@ failed: %@", endpoint.displayName ?: endpoint.identifier, error.localizedDescription ?: @""]];
+        if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+            [self notifyConnectionFailedForEndpoint:endpoint error:error];
+            [self notifyLANSessionsChanged];
+        }
+        return;
+    }
+
+    if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+        PVClientSession *usbSession = [self.sessionManager findUSBSessionByPeerIdentityUUID:session.peerIdentity.uuid];
+        if (usbSession && usbSession.state == PVClientSessionStateReady) {
+            [session close];
+            NSError *usbError = [NSError errorWithDomain:PVErrorDomain
+                                                     code:PVErrorCodeAlreadyConnectedViaUSB
+                                                 userInfo:@{NSLocalizedDescriptionKey: PVClientLANBlockedByUSBMessage}];
+            [self notifyConnectionFailedForEndpoint:endpoint error:usbError];
+            [self notifyLANSessionsChanged];
             return;
         }
-        [self.sessionManager markEndpointConnectedWithIdentifier:endpoint.identifier];
-        [self.sessionManager addSession:session];
-        [self notifyConnectedEndpoint:session.endpoint];
-        if (session.state == PVClientSessionStateReady) [self sendSmokeMessageWithSession:session endpoint:session.endpoint];
-        [self notifyLANSessionsChanged];
+    }
+
+    [self.sessionManager markEndpointConnectedWithIdentifier:endpoint.identifier];
+    [self.sessionManager addSession:session];
+    [self notifyConnectedEndpoint:session.endpoint];
+    if (session.state == PVClientSessionStateReady) {
+        [self sendSmokeMessageWithSession:session endpoint:session.endpoint];
+    }
 }
 
 - (nullable id<PVConnectionProtocol>)connectionForEndpoint:(id<PVEndpointProtocol>)endpoint {
@@ -424,7 +449,11 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
     }
     [self.sessionManager addEndpoint:endpoint];
     [self notifyLog:[NSString stringWithFormat:@"found %@", endpoint.displayName ?: endpoint.identifier]];
-    [self tryConnectEndpoint:endpoint];
+    if ([endpoint isKindOfClass:PVLANEndpoint.class]) {
+        [self notifyLANSessionsChanged];
+    } else {
+        [self tryConnectEndpoint:endpoint];
+    }
 }
 
 - (void)discoverer:(id<PVEndpointDiscovererProtocol>)discoverer didRemoveEndpoint:(id<PVEndpointProtocol>)endpoint {
@@ -468,6 +497,14 @@ static NSString * const PVClientLANUnavailableMessage = @"LAN session 不可用�
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([self.delegate respondsToSelector:@selector(pickViewClient:didConnectEndpoint:)]) {
             [self.delegate pickViewClient:self didConnectEndpoint:endpoint];
+        }
+    });
+}
+
+- (void)notifyConnectionFailedForEndpoint:(id<PVEndpointProtocol>)endpoint error:(NSError *)error {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self.delegate respondsToSelector:@selector(pickViewClient:didFailToConnectEndpoint:error:)]) {
+            [self.delegate pickViewClient:self didFailToConnectEndpoint:endpoint error:error];
         }
     });
 }

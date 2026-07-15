@@ -22,6 +22,8 @@ static NSError *PVLANNSErrorFromNWError(nw_error_t error) {
 @property (nonatomic, strong) dispatch_queue_t queue;
 @property (nonatomic, assign) int listeningPort;
 @property (nonatomic, copy) NSString *serviceName;
+@property (nonatomic, copy, nullable) NSString *deviceName;
+@property (nonatomic, copy, nullable) NSString *systemVersion;
 @property (nonatomic, copy, nullable) void(^startCompletion)(NSError * _Nullable error);
 @property (nonatomic, assign) BOOL didCallStartCompletion;
 @end
@@ -29,13 +31,25 @@ static NSError *PVLANNSErrorFromNWError(nw_error_t error) {
 @implementation PVLANListener
 
 - (instancetype)init {
-    return [self initWithServiceName:@"PickView"];
+    return [self initWithServiceName:@"PickView"
+                          deviceName:nil
+                       systemVersion:nil];
 }
 
 - (instancetype)initWithServiceName:(NSString *)serviceName {
+    return [self initWithServiceName:serviceName
+                          deviceName:nil
+                       systemVersion:nil];
+}
+
+- (instancetype)initWithServiceName:(NSString *)serviceName
+                          deviceName:(NSString *)deviceName
+                       systemVersion:(NSString *)systemVersion {
     self = [super init];
     if (self) {
         _serviceName = serviceName.length ? [serviceName copy] : @"PickView";
+        _deviceName = [deviceName copy];
+        _systemVersion = [systemVersion copy];
         _queue = dispatch_queue_create("com.pickview.lan.listener", DISPATCH_QUEUE_SERIAL);
     }
     return self;
@@ -62,6 +76,28 @@ static NSError *PVLANNSErrorFromNWError(nw_error_t error) {
     self.listener = listener;
 
     nw_advertise_descriptor_t advertiseDescriptor = nw_advertise_descriptor_create_bonjour_service(self.serviceName.UTF8String, PVLANBonjourServiceType, NULL);
+    if (self.deviceName.length || self.systemVersion.length) {
+        nw_txt_record_t TXTRecord = nw_txt_record_create_dictionary();
+        NSData *deviceNameData = [self.deviceName
+            dataUsingEncoding:NSUTF8StringEncoding];
+        NSData *systemVersionData = [self.systemVersion dataUsingEncoding:NSUTF8StringEncoding];
+        if (TXTRecord && deviceNameData.length) {
+            nw_txt_record_set_key(TXTRecord,
+                                  PVLANBonjourTXTKeyDeviceName,
+                                  deviceNameData.bytes,
+                                  deviceNameData.length);
+        }
+        if (TXTRecord && systemVersionData.length) {
+            nw_txt_record_set_key(TXTRecord,
+                                  PVLANBonjourTXTKeySystemVersion,
+                                  systemVersionData.bytes,
+                                  systemVersionData.length);
+        }
+        if (TXTRecord) {
+            nw_advertise_descriptor_set_txt_record_object(advertiseDescriptor,
+                                                          TXTRecord);
+        }
+    }
     nw_listener_set_advertise_descriptor(listener, advertiseDescriptor);
     nw_listener_set_queue(listener, self.queue);
 
