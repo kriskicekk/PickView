@@ -2,14 +2,14 @@ Pod::Spec.new do |s|
   s.name = 'PickViewCore'
   s.version = '0.1.0'
   s.summary = 'Shared connection contracts, wire models, and inspection DTOs for PickView.'
-  s.homepage = 'https://github.com/kris/PickView'
+  s.homepage = 'https://github.com/kriskicekk/PickView'
   s.license = {
     :type => 'GPL-3.0',
     :file => 'Source/PickViewCore/InspectionModels/LICENSE.PickView-GPL-3.0.txt'
   }
   s.author = 'kris cheng'
   s.source = {
-    :git => 'https://github.com/kris/PickView.git',
+    :git => 'https://github.com/kriskicekk/PickView.git',
     :tag => s.version.to_s
   }
 
