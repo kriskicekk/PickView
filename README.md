@@ -2,6 +2,10 @@
 
 [中文](#中文) | [English](#english)
 
+![PickView Mac 展示 Flutter Widget 层级、3D 视图和属性](Docs/Images/pickview-mac-flutter-inspector.png)
+
+*PickView Mac 中的 Flutter Widget 层级、3D 视图与属性面板 / Flutter widget hierarchy, 3D view, and properties in PickView Mac.*
+
 ## 中文
 
 ### 项目简介
