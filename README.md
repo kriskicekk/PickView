@@ -34,7 +34,7 @@ KKFlutterInspectorKit Flutter VM Service 与 Inspector 封装
 通过 CocoaPods 接入 `PickViewServer`，建议只在 Debug 配置中启用：
 
 ```ruby
-pod 'PickViewServer', '0.1.0', :configurations => ['Debug']
+pod 'PickViewServer', '0.1.1', :configurations => ['Debug']
 ```
 
 `PickViewServer` 已经依赖 `PickViewCore`。在 iOS 中还会自动带入 `KKFlutterInspectorKit`，因此原生 App 和包含 Flutter 页面的 App 使用相同的 Pod 声明，业务代码不需要单独 import、创建或启动 InspectorKit。macOS 只会编译对应平台的服务端实现，不会接入 iOS Flutter 代码。
@@ -163,7 +163,7 @@ KKFlutterInspectorKit Flutter VM Service and Inspector integration
 Integrate `PickViewServer` through CocoaPods and restrict it to Debug builds whenever possible:
 
 ```ruby
-pod 'PickViewServer', '0.1.0', :configurations => ['Debug']
+pod 'PickViewServer', '0.1.1', :configurations => ['Debug']
 ```
 
 `PickViewServer` already depends on `PickViewCore`. On iOS it also brings in `KKFlutterInspectorKit` automatically, so native apps and apps containing Flutter pages use the same Pod declaration. Application code does not need to import, create, or start InspectorKit separately. On macOS, CocoaPods compiles only the matching server implementation and does not integrate the iOS Flutter sources.

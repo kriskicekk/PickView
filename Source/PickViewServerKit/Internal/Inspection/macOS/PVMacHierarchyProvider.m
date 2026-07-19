@@ -1351,6 +1351,25 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
                                 targetOid:layerOid
                                    setter:@"setMasksToBounds:"]
         ]]];
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_BgColor attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_BgColor_BgColor
+                                     type:PVAttrTypeUIColor
+                                    value:[[layer pv_lks_backgroundColor] pv_inspect_rgbaComponents]
+                                targetOid:layerOid
+                                   setter:@"setLks_backgroundColor:"]
+        ]]];
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Border attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Border_Color
+                                     type:PVAttrTypeUIColor
+                                    value:[[layer pv_lks_borderColor] pv_inspect_rgbaComponents]
+                                targetOid:layerOid
+                                   setter:@"setLks_borderColor:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Border_Width
+                                     type:PVAttrTypeDouble
+                                    value:@(layer.borderWidth)
+                                targetOid:layerOid
+                                   setter:@"setBorderWidth:"]
+        ]]];
         [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Corner attributes:@[
             [self attributeWithIdentifier:PVAttr_ViewLayer_Corner_Radius
                                      type:PVAttrTypeDouble
@@ -1358,12 +1377,41 @@ static NSString *const PVMacIvarTracesBindingKey = @"PVMacIvarTracesBindingKey";
                                 targetOid:layerOid
                                    setter:@"setCornerRadius:"]
         ]]];
-        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Border attributes:@[
-            [self attributeWithIdentifier:PVAttr_ViewLayer_Border_Width
-                                     type:PVAttrTypeDouble
-                                    value:@(layer.borderWidth)
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Shadow attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Shadow_Color
+                                     type:PVAttrTypeUIColor
+                                    value:[[layer pv_lks_shadowColor] pv_inspect_rgbaComponents]
                                 targetOid:layerOid
-                                   setter:@"setBorderWidth:"]
+                                   setter:@"setLks_shadowColor:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Shadow_Opacity
+                                     type:PVAttrTypeFloat
+                                    value:@(layer.shadowOpacity)
+                                targetOid:layerOid
+                                   setter:@"setShadowOpacity:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Shadow_Radius
+                                     type:PVAttrTypeDouble
+                                    value:@(layer.shadowRadius)
+                                targetOid:layerOid
+                                   setter:@"setShadowRadius:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Shadow_OffsetW
+                                     type:PVAttrTypeDouble
+                                    value:@([layer pv_lks_shadowOffsetWidth])
+                                targetOid:layerOid
+                                   setter:@"setLks_shadowOffsetWidth:"],
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Shadow_OffsetH
+                                     type:PVAttrTypeDouble
+                                    value:@([layer pv_lks_shadowOffsetHeight])
+                                targetOid:layerOid
+                                   setter:@"setLks_shadowOffsetHeight:"]
+        ]]];
+    }
+    if ([object isKindOfClass:NSView.class]) {
+        [viewLayerSections addObject:[self sectionWithIdentifier:PVAttrSec_ViewLayer_Tag attributes:@[
+            [self attributeWithIdentifier:PVAttr_ViewLayer_Tag_Tag
+                                     type:PVAttrTypeLong
+                                    value:@(((NSView *)object).tag)
+                                targetOid:objectOid
+                                   setter:@"setTag:"]
         ]]];
     }
     [groups addObject:[self groupWithIdentifier:PVAttrGroup_ViewLayer sections:viewLayerSections.copy]];

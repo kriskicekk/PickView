@@ -7,6 +7,54 @@
 
 #import "PVMacAttributeAccessors.h"
 
+@implementation CALayer (PVInspectServer)
+
+- (NSColor *)pv_lks_backgroundColor {
+    return self.backgroundColor ? [NSColor colorWithCGColor:self.backgroundColor] : nil;
+}
+
+- (NSColor *)pv_lks_borderColor {
+    return self.borderColor ? [NSColor colorWithCGColor:self.borderColor] : nil;
+}
+
+- (NSColor *)pv_lks_shadowColor {
+    return self.shadowColor ? [NSColor colorWithCGColor:self.shadowColor] : nil;
+}
+
+- (CGFloat)pv_lks_shadowOffsetWidth {
+    return self.shadowOffset.width;
+}
+
+- (CGFloat)pv_lks_shadowOffsetHeight {
+    return self.shadowOffset.height;
+}
+
+- (void)setLks_backgroundColor:(NSColor *)color {
+    self.backgroundColor = color ? color.CGColor : NULL;
+}
+
+- (void)setLks_borderColor:(NSColor *)color {
+    self.borderColor = color ? color.CGColor : NULL;
+}
+
+- (void)setLks_shadowColor:(NSColor *)color {
+    self.shadowColor = color ? color.CGColor : NULL;
+}
+
+- (void)setLks_shadowOffsetWidth:(CGFloat)width {
+    CGSize offset = self.shadowOffset;
+    offset.width = width;
+    self.shadowOffset = offset;
+}
+
+- (void)setLks_shadowOffsetHeight:(CGFloat)height {
+    CGSize offset = self.shadowOffset;
+    offset.height = height;
+    self.shadowOffset = offset;
+}
+
+@end
+
 @implementation NSImageView (PVInspectServer)
 
 - (NSString *)pv_lks_imageSourceName {

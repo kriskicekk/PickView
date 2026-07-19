@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name = 'PickViewServer'
-  s.version = '0.1.0'
+  s.version = '0.1.1'
   s.summary = 'The embeddable iOS and macOS inspection server for PickView.'
   s.homepage = 'https://github.com/kriskicekk/PickView'
   s.license = {

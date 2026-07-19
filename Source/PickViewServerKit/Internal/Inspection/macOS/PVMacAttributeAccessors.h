@@ -6,8 +6,22 @@
 //
 
 #import <AppKit/AppKit.h>
+#import <QuartzCore/QuartzCore.h>
 
 NS_ASSUME_NONNULL_BEGIN
+
+@interface CALayer (PVInspectServer)
+- (nullable NSColor *)pv_lks_backgroundColor;
+- (nullable NSColor *)pv_lks_borderColor;
+- (nullable NSColor *)pv_lks_shadowColor;
+- (CGFloat)pv_lks_shadowOffsetWidth;
+- (CGFloat)pv_lks_shadowOffsetHeight;
+- (void)setLks_backgroundColor:(nullable NSColor *)color;
+- (void)setLks_borderColor:(nullable NSColor *)color;
+- (void)setLks_shadowColor:(nullable NSColor *)color;
+- (void)setLks_shadowOffsetWidth:(CGFloat)width;
+- (void)setLks_shadowOffsetHeight:(CGFloat)height;
+@end
 
 @interface NSImageView (PVInspectServer)
 - (nullable NSString *)pv_lks_imageSourceName;

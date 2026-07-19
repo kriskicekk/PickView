@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name = 'PickViewCore'
-  s.version = '0.1.0'
+  s.version = '0.1.1'
   s.summary = 'Shared connection contracts, wire models, and inspection DTOs for PickView.'
   s.homepage = 'https://github.com/kriskicekk/PickView'
   s.license = {
